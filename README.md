@@ -12,7 +12,7 @@ docker compose -f infra/docker-compose.yml up -d
 
 # 2. API on http://127.0.0.1:8000 (docs at /docs)
 cd api
-cp .env.example .env
+cp .env.example .env   # then fill SPRUCE_DATA_KEY and SPRUCE_INDEX_KEY
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 127.0.0.1

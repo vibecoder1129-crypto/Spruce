@@ -3,6 +3,8 @@ import asyncio
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import app.audit
+import app.identity.models  # noqa: F401
 from app.config import get_settings
 from app.db import Base
 

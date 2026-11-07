@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
+import { brand } from "@/brand";
+
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from the visitor's browser (GDPR).
@@ -11,7 +13,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Spruce", template: "%s · Spruce" },
+  title: { default: brand.name, template: `%s · ${brand.name}` },
   description: "Book beauty and wellness appointments at venues near you.",
 };
 

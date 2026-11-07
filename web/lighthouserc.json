@@ -4,7 +4,8 @@
       "startServerCommand": "npm run start -- -p 3200 -H 127.0.0.1",
       "url": [
         "http://127.0.0.1:3200/",
-        "http://127.0.0.1:3200/design"
+        "http://127.0.0.1:3200/design",
+        "http://127.0.0.1:3200/login"
       ],
       "numberOfRuns": 3,
       "settings": {
