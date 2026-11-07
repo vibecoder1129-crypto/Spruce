@@ -9,7 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
 from app.config import get_settings
+from app.csrf import CSRFMiddleware
 from app.db import get_session
+from app.identity.router import me_router
+from app.identity.router import router as auth_router
 from app.logging import configure_logging
 from app.security import SecurityHeadersMiddleware
 
@@ -28,6 +31,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url=None if is_prod else "/openapi.json",
     )
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -48,6 +52,8 @@ def create_app() -> FastAPI:
         await session.execute(text("SELECT 1"))
         return {"status": "ok"}
 
+    app.include_router(auth_router)
+    app.include_router(me_router)
     return app
 
 

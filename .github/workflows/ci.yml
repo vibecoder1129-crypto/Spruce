@@ -35,6 +35,9 @@ jobs:
       SPRUCE_ENV: test
       SPRUCE_DATABASE_URL: postgresql+psycopg://spruce:spruce@127.0.0.1:5432/spruce
       SPRUCE_REDIS_URL: redis://127.0.0.1:6379/0
+      # Throwaway keys for CI only; real keys live in the deployment's secret store.
+      SPRUCE_DATA_KEY: ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ=
+      SPRUCE_INDEX_KEY: aWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWk=
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -55,8 +58,29 @@ jobs:
     defaults:
       run:
         working-directory: web
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_USER: spruce
+          POSTGRES_PASSWORD: spruce
+          POSTGRES_DB: spruce
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U spruce" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      # The browser tests run the real API on port 8100; the build bakes in this address.
+      SPRUCE_API_URL: http://127.0.0.1:8100
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+        working-directory: api
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -68,7 +92,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: End-to-end and accessibility tests
+      - name: End-to-end and accessibility tests (against the real API)
         run: npm run e2e
       - name: Lighthouse (performance 95+, accessibility 100)
         run: npm run lhci
