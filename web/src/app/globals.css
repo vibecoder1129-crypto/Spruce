@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Spruce design tokens, taken from the approved canvas (archit's botanical reference).
+ * Components use these names only; no raw hex values outside this file.
+ */
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ground: #f7f6f1;
+  --color-surface: #ffffff;
+  --color-line: #eceae2;
+  --color-line-strong: #d3d9d2;
+  --color-ink: #15201a;
+  --color-muted: #5b655f; /* 6.0:1 on ground, passes WCAG AA for body text */
+  --color-spruce: #1b4332;
+  --color-spruce-hover: #10291f;
+  --color-mint: #eef3ef;
+  --color-mint-strong: #e3ede6;
+  --color-danger: #a4271b;
+  --color-danger-soft: #fbeceb;
+  --color-warn-soft: #fbf3e2;
+
+  --radius-control: 14px;
+  --radius-card: 26px;
+
+  --tracking-label: 0.08em;
+  --tracking-wordmark: 0.06em;
+
+  --shadow-card: 0 1px 2px rgb(21 32 26 / 0.04), 0 8px 24px -12px rgb(21 32 26 / 0.12);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* One visible focus style for every interactive element (WCAG 2.4.7 / 2.4.11). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-spruce);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

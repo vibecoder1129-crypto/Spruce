@@ -1,0 +1,23 @@
+# Secrets never enter the repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Confidential product specs stay out of the repo
+*.docx
+*.pdf
+
+# Python
+__pycache__/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

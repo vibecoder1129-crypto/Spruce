@@ -1,0 +1,24 @@
+# Local development only. Ports bind to 127.0.0.1 so nothing is reachable from the network.
+# On Windows, use 127.0.0.1 (not "localhost") in connection strings: localhost tries IPv6 first.
+services:
+  postgres:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: spruce
+      POSTGRES_PASSWORD: spruce
+      POSTGRES_DB: spruce
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spruce"]
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:
