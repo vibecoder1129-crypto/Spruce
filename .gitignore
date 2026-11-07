@@ -21,3 +21,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local Redis snapshots
+dump.rdb
