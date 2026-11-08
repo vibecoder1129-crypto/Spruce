@@ -20,14 +20,41 @@
   --color-danger: #a4271b;
   --color-danger-soft: #fbeceb;
   --color-warn-soft: #fbf3e2;
+  --color-line-warm: #e4e2d9;
+  --color-watermark: #f1efe8;
+  --color-footer-text: #c9d3cc;
+  --color-wordmark-light: #9cc5ae;
 
   --radius-control: 14px;
+  --radius-button: 14px;
   --radius-card: 26px;
 
-  --tracking-label: 0.08em;
+  --tracking-label: 0.12em;
+  --tracking-eyebrow: 0.18em;
   --tracking-wordmark: 0.06em;
 
+  --color-forest: #0e2419; /* deep panel ground; white text is 16:1 on it */
+  --color-sage: #9fb8a8; /* decorative line art on forest only, never text */
+  --color-leaf: #cfe1d4; /* text on forest, 12:1 */
+
   --shadow-card: 0 1px 2px rgb(21 32 26 / 0.04), 0 8px 24px -12px rgb(21 32 26 / 0.12);
+  --shadow-float: 0 1px 2px rgb(21 32 26 / 0.05), 0 24px 48px -24px rgb(21 32 26 / 0.28);
+  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 10px 24px -8px rgb(27 67 50 / 0.35);
+  --shadow-focus-ring: 0 0 0 4px var(--color-mint-strong);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-rise: rise 0.6s var(--ease-out) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 :root {
@@ -50,7 +77,67 @@ body {
   outline-offset: 2px;
 }
 
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Gentle bob for floating chips: two cycles, under 5 seconds (WCAG 2.2.2). */
+.float {
+  animation:
+    rise 0.6s var(--ease-out) both var(--delay, 0ms),
+    float 2.2s ease-in-out calc(var(--delay, 0ms) + 0.6s) 2;
+}
+
+/* A step or panel replacing another: key the element so it replays. */
+.slide-in {
+  animation: slide-in 0.45s var(--ease-out) both;
+}
+
+.pop {
+  animation: pop 0.4s var(--ease-out) both;
+}
+
+/* Staggered entrance: set --delay on the element. */
+.rise {
+  animation: var(--animate-rise);
+  animation-delay: var(--delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .rise,
+  .slide-in,
+  .pop,
+  .float {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {
@@ -59,4 +146,16 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Map pin for venues (slice 5a). */
+.venue-pin {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--color-spruce);
+  border: 3px solid var(--color-surface);
+  box-shadow: 0 4px 10px rgb(21 32 26 / 0.3);
 }

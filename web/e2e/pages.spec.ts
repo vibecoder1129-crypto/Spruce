@@ -56,3 +56,25 @@ test("makes no requests to third parties", async ({ page }) => {
   await page.waitForLoadState("networkidle");
   expect(external).toEqual([]);
 });
+
+test("the booking example walks through four steps and starts again", async ({ page }) => {
+  await page.goto("/#try");
+  const demo = page.locator("#try");
+  await demo.getByRole("button", { name: /Gel manicure/ }).click();
+  await demo.getByRole("button", { name: "Any professional" }).click();
+  await demo.getByRole("button", { name: "13:15" }).click();
+  await expect(demo).toContainText("Saturday at 13:15");
+  await demo.getByRole("button", { name: "Confirm booking" }).click();
+  await expect(demo).toContainText("You're booked");
+  await demo.getByRole("button", { name: "Start again" }).click();
+  await expect(demo.getByRole("group", { name: "What would you like?" })).toBeVisible();
+});
+
+test("the business preview shows what the visitor types", async ({ page }) => {
+  await page.goto("/#business");
+  await page.getByLabel("Your business name").fill("Birch Room");
+  const section = page.locator("#business");
+  await section.getByRole("button", { name: "Massage", exact: true }).click();
+  await expect(section).toContainText("Birch Room");
+  await expect(section.getByRole("button", { name: "Massage", exact: true })).toHaveAttribute("aria-pressed", "true");
+});

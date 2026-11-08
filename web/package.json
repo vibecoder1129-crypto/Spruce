@@ -12,7 +12,9 @@
     "lhci": "lhci autorun"
   },
   "dependencies": {
+    "leaflet": "1.9.4",
     "next": "16.4.5",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
@@ -21,11 +23,14 @@
     "@lhci/cli": "^0.16.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/turbopack": "^4",
+    "@types/leaflet": "1.9.12",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "otpauth": "^9.6.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
