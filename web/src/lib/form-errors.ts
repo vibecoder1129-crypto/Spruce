@@ -13,9 +13,10 @@ export function useFieldErrors() {
 
   function check(form: HTMLFormElement): boolean {
     const found: Record<string, string> = {};
-    let first: HTMLInputElement | null = null;
+    let first: HTMLInputElement | HTMLSelectElement | null = null;
     for (const el of Array.from(form.elements)) {
-      if (!(el instanceof HTMLInputElement) || !el.name || el.disabled) continue;
+      if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement) || !el.name || el.disabled) continue;
+      if (el.name in found) continue;
       const message = problem(el);
       if (!message) continue;
       found[el.name] = message;
@@ -38,7 +39,12 @@ export function useFieldErrors() {
   return { errors, check, clear };
 }
 
-function problem(el: HTMLInputElement): string | null {
+function problem(el: HTMLInputElement | HTMLSelectElement): string | null {
+  if (el instanceof HTMLSelectElement) return el.required && !el.value ? (el.dataset.missing ?? "Choose one to continue.") : null;
+  if (el.type === "radio") {
+    const picked = el.form?.querySelector(`input[type=radio][name="${CSS.escape(el.name)}"]:checked`);
+    return el.required && !picked ? (el.dataset.missing ?? "Choose one to continue.") : null;
+  }
   const value = el.value.trim();
   if (el.type === "checkbox") return el.required && !el.checked ? "Tick this box to continue." : null;
   if (el.required && !value) return el.dataset.missing ?? "Fill this in to continue.";

@@ -21,6 +21,7 @@ import {
   type Staff,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useFieldErrors } from "@/lib/form-errors";
 import { useMe } from "@/lib/use-me";
 
 type State = { business: Business | null; places: Place[]; staff: Staff[]; countries: Country[] };
@@ -129,7 +130,7 @@ export function Onboarding() {
                   <StaffStep business={state.business} places={state.places} onDraft={onDraft} onDone={load} />
                 )}
                 {step === 3 && state.business && (
-                  <ReviewStep state={state} onDone={() => setSubmitted(true)} />
+                  <ReviewStep state={state} onEditBusiness={() => setEditing(true)} onDone={() => setSubmitted(true)} />
                 )}
               </div>
             </section>
@@ -218,6 +219,11 @@ function Steps({ current, canEdit, onEdit }: { current: number; canEdit: boolean
   );
 }
 
+type FieldErrors = Record<string, string>;
+
+const fieldName = (target: EventTarget) => (target as { name?: string }).name ?? "";
+
+/** A step's form. Problems show under each field in our words; the children read them from `errors`. */
 function StepForm({
   onSubmit,
   onDraft,
@@ -229,16 +235,23 @@ function StepForm({
   onDraft?: (values: Draft) => void;
   submit: string;
   secondary?: ReactNode;
-  children: ReactNode;
+  children: (errors: FieldErrors) => ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { errors, check, clear } = useFieldErrors();
   return (
     <form
+      noValidate
       className="flex flex-col gap-5"
-      onChange={(e) => onDraft?.(readForm(e.currentTarget))}
+      onInput={(e) => clear(fieldName(e.target))}
+      onChange={(e) => {
+        clear(fieldName(e.target));
+        onDraft?.(readForm(e.currentTarget));
+      }}
       onSubmit={async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (busy || !check(event.currentTarget)) return;
         const values = readForm(event.currentTarget);
         setBusy(true);
         setError(null);
@@ -252,7 +265,7 @@ function StepForm({
       }}
     >
       <FormError message={error} />
-      {children}
+      {children(errors)}
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
         <Button type="submit" size="lg" loading={busy}>
           {submit}
@@ -294,55 +307,71 @@ function BusinessStep({
         await onDone();
       }}
     >
-      <Field
-        label="Business name"
-        name="name"
-        required
-        maxLength={120}
-        autoComplete="organization"
-        defaultValue={business?.name}
-        hint="The name on your door, for example Linden Studio."
-      />
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 text-sm font-semibold">
-          What do you offer? <span aria-hidden="true" className="font-normal text-muted">*</span>
-          <span className="sr-only">(required)</span>
-        </legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {Object.entries(CATEGORIES).map(([value, label]) => (
-            <label
-              key={value}
-              className={cn(
-                "relative flex min-h-12 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3.5 text-sm font-semibold transition-[background-color,border-color,box-shadow] duration-200",
-                "has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-spruce",
-                category === value
-                  ? "border-spruce bg-mint text-spruce shadow-[var(--shadow-focus-ring)]"
-                  : "border-line-strong bg-surface hover:border-muted hover:bg-ground",
-              )}
-            >
-              <input
-                type="radio"
-                name="category"
-                value={value}
-                required
-                checked={category === value}
-                onChange={() => setCategory(value)}
-                className="sr-only"
-              />
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
-                  category === value ? "border-spruce bg-spruce text-white" : "border-line-strong",
-                )}
-              >
-                {category === value && <Icon name="check" width={10} height={10} strokeWidth={3.5} />}
-              </span>
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {(errors) => (
+        <>
+          <Field
+            label="Business name"
+            name="name"
+            data-missing="Enter your business name."
+            error={errors.name}
+            required
+            maxLength={120}
+            autoComplete="organization"
+            defaultValue={business?.name}
+            hint="The name on your door, for example Linden Studio."
+          />
+          <fieldset
+            className="flex flex-col gap-2"
+            aria-invalid={errors.category ? true : undefined}
+            aria-describedby={errors.category ? "category-error" : undefined}
+          >
+            <legend className="mb-1.5 text-sm font-semibold">
+              What do you offer? <span aria-hidden="true" className="font-normal text-muted">*</span>
+              <span className="sr-only">(required)</span>
+            </legend>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {Object.entries(CATEGORIES).map(([value, label]) => (
+                <label
+                  key={value}
+                  className={cn(
+                    "relative flex min-h-12 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3.5 text-sm font-semibold transition-[background-color,border-color,box-shadow] duration-200",
+                    "has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-spruce",
+                    category === value
+                      ? "border-spruce bg-mint text-spruce shadow-[var(--shadow-focus-ring)]"
+                      : "border-line-strong bg-surface hover:border-muted hover:bg-ground",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="category"
+                    value={value}
+                    data-missing="Choose what you offer. You can add more services later."
+                    required
+                    checked={category === value}
+                    onChange={() => setCategory(value)}
+                    className="sr-only"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                      category === value ? "border-spruce bg-spruce text-white" : "border-line-strong",
+                    )}
+                  >
+                    {category === value && <Icon name="check" width={10} height={10} strokeWidth={3.5} />}
+                  </span>
+                  {label}
+                </label>
+              ))}
+            </div>
+            {errors.category && (
+              <p id="category-error" className="text-sm font-medium text-danger">
+                {errors.category}
+              </p>
+            )}
+          </fieldset>
+        </>
+      )}
     </StepForm>
   );
 }
@@ -377,35 +406,79 @@ function LocationStep({
         await onDone();
       }}
     >
-      <Field label="Venue name" name="venue" required maxLength={80} hint="Helps customers tell your venues apart, for example Old Town." />
-      <Field label="Street and number" name="street" required maxLength={160} autoComplete="street-address" />
-      <div className="grid gap-5 sm:grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)]">
-        <Field label="Postcode" name="postal_code" required maxLength={16} autoComplete="postal-code" />
-        <Field label="City" name="city" required maxLength={80} autoComplete="address-level2" />
-      </div>
-      <Select label="Country" name="country_code" required value={code} onChange={(e) => setCode(e.target.value)}>
-        <option value="" disabled>
-          Choose a country
-        </option>
-        {countries.map((c) => (
-          <option key={c.code} value={c.code}>
-            {c.name}
-          </option>
-        ))}
-      </Select>
-      {zones.length > 1 && (
-        <Select label="Time zone" name="timezone" required defaultValue={zones[0]} key={code}>
-          {zones.map((z) => (
-            <option key={z} value={z}>
-              {z.replace("_", " ").split("/").pop()}
+      {(errors) => (
+        <>
+          <Field
+            label="Venue name"
+            name="venue"
+            required
+            maxLength={80}
+            hint="Helps customers tell your venues apart, for example Old Town."
+            data-missing="Name this venue, for example Old Town."
+            error={errors.venue}
+          />
+          <Field
+            label="Street and number"
+            name="street"
+            required
+            maxLength={160}
+            autoComplete="street-address"
+            data-missing="Enter the street and number."
+            error={errors.street}
+          />
+          <div className="grid gap-5 sm:grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)]">
+            <Field
+              label="Postcode"
+              name="postal_code"
+              required
+              maxLength={16}
+              autoComplete="postal-code"
+              data-missing="Enter the postcode."
+              error={errors.postal_code}
+            />
+            <Field
+              label="City"
+              name="city"
+              required
+              maxLength={80}
+              autoComplete="address-level2"
+              data-missing="Enter the city."
+              error={errors.city}
+            />
+          </div>
+          <Select
+            label="Country"
+            name="country_code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            data-missing="Choose the country."
+            error={errors.country_code}
+          >
+            <option value="" disabled>
+              Choose a country
             </option>
-          ))}
-        </Select>
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          {zones.length > 1 && (
+            <Select label="Time zone" name="timezone" required defaultValue={zones[0]} key={code}>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z.replace("_", " ").split("/").pop()}
+                </option>
+              ))}
+            </Select>
+          )}
+          <p className="flex items-start gap-2 rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
+            <Icon name="pin" width={18} height={18} className="mt-px shrink-0 text-spruce" />
+            We place your venue on the map from this address, so customers nearby can find you.
+          </p>
+        </>
       )}
-      <p className="flex items-start gap-2 rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
-        <Icon name="pin" width={18} height={18} className="mt-px shrink-0 text-spruce" />
-        We place your venue on the map from this address, so customers nearby can find you.
-      </p>
     </StepForm>
   );
 }
@@ -433,34 +506,48 @@ function StaffStep({
         await onDone();
       }}
     >
-      <Field
-        label="Name customers see"
-        name="display_name"
-        required
-        maxLength={80}
-        autoComplete="name"
-        hint="If you work there yourself, start with you."
-      />
-      <Field
-        label="Title"
-        name="title"
-        maxLength={80}
-        hint="Optional, for example Senior stylist."
-      />
-      {places.length > 1 && (
-        <Select label="Works at" name="location_id" required>
-          {places.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
+      {(errors) => (
+        <>
+          <Field
+            label="Name customers see"
+            name="display_name"
+            data-missing="Enter the name customers will see."
+            error={errors.display_name}
+            required
+            maxLength={80}
+            autoComplete="name"
+            hint="If you work there yourself, start with you."
+          />
+          <Field
+            label="Title"
+            name="title"
+            maxLength={80}
+            hint="Optional, for example Senior stylist."
+          />
+          {places.length > 1 && (
+            <Select label="Works at" name="location_id" required>
+              {places.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </>
       )}
     </StepForm>
   );
 }
 
-function ReviewStep({ state, onDone }: { state: State; onDone: () => void }) {
+function ReviewStep({
+  state,
+  onEditBusiness,
+  onDone,
+}: {
+  state: State;
+  onEditBusiness: () => void;
+  onDone: () => void;
+}) {
   const business = state.business!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -479,10 +566,15 @@ function ReviewStep({ state, onDone }: { state: State; onDone: () => void }) {
             <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-mint-strong text-spruce">
               <Icon name="check" width={14} height={14} strokeWidth={2.6} />
             </span>
-            <span className="flex flex-col">
+            <span className="flex min-w-0 flex-1 flex-col">
               <span className="text-sm text-muted">{label}</span>
               <span className="font-semibold">{value}</span>
             </span>
+            {i === 0 && (
+              <Button variant="ghost" className="-my-2 shrink-0 px-3" onClick={onEditBusiness}>
+                Edit<span className="sr-only"> business details</span>
+              </Button>
+            )}
           </li>
         ))}
       </ul>

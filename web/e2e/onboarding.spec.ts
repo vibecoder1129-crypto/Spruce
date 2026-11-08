@@ -16,6 +16,12 @@ test("an owner onboards, waits for review, and an admin approves the business", 
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.getByRole("heading", { name: "Tell us about your business" })).toBeVisible();
   await expectAccessible(page);
+  // Nothing filled in: each problem shows under its field, and nothing is sent.
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByLabel("Business name")).toBeFocused();
+  await expect(page.getByLabel("Business name")).toHaveAccessibleDescription(/Enter your business name\./);
+  await expect(page.getByText("Choose what you offer.")).toBeVisible();
+  await expectAccessible(page);
   await page.getByLabel("Business name").fill(name);
   await page.locator("label", { hasText: "Hair salon" }).click();
   await expect(page.getByRole("radio", { name: "Hair salon" })).toBeChecked();
