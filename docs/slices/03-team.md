@@ -87,9 +87,9 @@ Rules the tests cover:
 
 ## Decisions
 
-- **Currency is set by the server from the business's first location** (EUR for euro countries;
-  PLN, CZK, SEK, DKK, HUF, RON, BGN, ISK, NOK and CHF elsewhere). Prices are integer minor
-  units, never floats.
+- **Currency is set by the server from the business's first location.** That's EUR in the euro
+  countries (Bulgaria joined in 2026), and PLN, CZK, SEK, DKK, HUF, RON, ISK, NOK or CHF
+  elsewhere. Prices are integer minor units, never floats.
 - **Two-step for staff is optional** in this slice. MFA is mandatory for owners and platform
   admins, and staff can't change business data. Revisit when `checkout.own` handles money in
   slice 6.
