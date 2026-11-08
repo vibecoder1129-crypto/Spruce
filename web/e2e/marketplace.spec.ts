@@ -92,7 +92,7 @@ test("a visitor finds an approved venue by city and near them, opens it, and a c
   await c.getByLabel("Email").fill(email);
   await c.getByLabel("Password").fill(PASSWORD);
   await c.getByRole("button", { name: "Log in" }).click();
-  await expect(c).toHaveURL(/\/account$/);
+  await expect(c).toHaveURL(/\/bookings$/);
   await c.goto(storefront);
   const save = c.getByRole("button", { name: `Save ${name}` });
   await save.click();

@@ -207,9 +207,46 @@ export type Storefront = {
     timezone: string;
     hours: { day: number; opens: string | null; closes: string | null }[];
   }[];
-  services: { id: string; name: string; category: string; duration_minutes: number; price_minor: number; currency: string }[];
+  services: {
+    id: string;
+    name: string;
+    category: string;
+    duration_minutes: number;
+    price_minor: number;
+    currency: string;
+    staff_ids: string[];
+  }[];
   team: { id: string; display_name: string; title: string }[];
 };
+
+export type Availability = { date: string; timezone: string; slots: { staff_id: string; time: string }[] };
+
+export type MyBooking = {
+  id: string;
+  business_id: string;
+  business_name: string;
+  location_name: string;
+  address: string;
+  service_id: string;
+  service_name: string;
+  staff_id: string;
+  staff_name: string;
+  start: string; // venue wall-clock "YYYY-MM-DDTHH:MM"
+  end: string;
+  timezone: string;
+  status: BookingStatus;
+  price_minor: number;
+  currency: string;
+  can_change: boolean;
+};
+
+export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };
+
+/** A same-site path to return to after signing in, or null. Never another origin. */
+export function safeNext(value: string | null): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
+  return value;
+}
 
 export type Favorite = { business_id: string; business_name: string; category: string; city: string; saved_at: string };
 
@@ -360,5 +397,5 @@ export function nextStep(me: Me): string {
   if (me.role === "owner") return "/dashboard"; // The dashboard sends new owners on to onboarding.
   if (me.role === "admin") return "/admin/businesses";
   if (me.role === "staff") return "/staff";
-  return "/account";
+  return "/bookings";
 }
