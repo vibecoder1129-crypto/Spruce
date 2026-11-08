@@ -54,6 +54,10 @@ test("an owner sets up services and a team member, who signs in until a permissi
   await expect(list).toContainText("€79.50");
   await expectAccessible(page);
 
+  // The home checklist counts services as done once there is one.
+  await page.goto("/dashboard");
+  await expect(page.getByRole("region", { name: "Get ready for bookings" })).toContainText("Services and prices, done");
+
   // Team: assign one service
   await page.goto("/dashboard/team");
   await page.getByRole("button", { name: /Marta/ }).click();
