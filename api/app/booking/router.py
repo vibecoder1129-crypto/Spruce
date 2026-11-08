@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import audit
 from app.booking.models import Booking, BookingSource, BookingStatus, TimeOff, WeeklyShift
 from app.booking.schemas import (
+    BookableService,
     BookingDetail,
     BookingOut,
     BookingPatch,
@@ -540,6 +541,26 @@ async def day_board(
         .where(TimeOff.staff_id.in_(ids), TimeOff.starts_at < end, TimeOff.ends_at > start)
         .order_by(TimeOff.starts_at)
     )
+    bookable = [s.id for s in staff if actor.books(s.id)]
+    offered: dict[uuid.UUID, BookableService] = {}
+    for service, staff_id in await db.execute(
+        select(Service, StaffService.staff_id)
+        .join(StaffService, StaffService.service_id == Service.id)
+        .where(StaffService.staff_id.in_(bookable), Service.active.is_(True))
+        .order_by(Service.name)
+    ):
+        entry = offered.setdefault(
+            service.id,
+            BookableService(
+                id=service.id,
+                name=service.name,
+                duration_minutes=service.duration_minutes,
+                price_minor=service.price_minor,
+                currency=service.currency,
+                staff_ids=[],
+            ),
+        )
+        entry.staff_ids.append(staff_id)
     return CalendarOut(
         date=day,
         location_id=place.id,
@@ -558,6 +579,7 @@ async def day_board(
         ],
         bookings=[_booking_out(b, name) for b, name in bookings],
         time_off=[_time_off_out(b) for b in blocks],
+        services=list(offered.values()),
         can_block_time=actor.is_owner,
-        can_book_staff_ids=[s.id for s in staff if actor.books(s.id)],
+        can_book_staff_ids=bookable,
     )

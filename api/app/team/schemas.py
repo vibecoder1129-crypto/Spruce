@@ -82,6 +82,7 @@ class MyStaffPatch(Strict):
 
 class MyStaffOut(BaseModel):
     id: uuid.UUID
+    business_id: uuid.UUID
     display_name: str
     title: str
     business_name: str

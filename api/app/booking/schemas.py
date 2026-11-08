@@ -150,6 +150,15 @@ class PlaceOut(BaseModel):
     name: str
 
 
+class BookableService(BaseModel):
+    id: uuid.UUID
+    name: str
+    duration_minutes: int
+    price_minor: int
+    currency: str
+    staff_ids: list[uuid.UUID]
+
+
 class CalendarOut(BaseModel):
     date: date
     location_id: uuid.UUID
@@ -158,6 +167,8 @@ class CalendarOut(BaseModel):
     staff: list[Column]
     bookings: list[BookingOut]
     time_off: list[TimeOffOut]
+    # Active services offered by the columns the caller may book for, for the walk-in form.
+    services: list[BookableService]
     # What the caller may do, so the web can hide what the API would refuse anyway.
     can_block_time: bool
     can_book_staff_ids: list[uuid.UUID]

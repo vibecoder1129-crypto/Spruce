@@ -84,6 +84,40 @@ async def main(db):
   );
 }
 
+/** A new owner with a submitted business, one location and one team member (Marta). */
+export async function ownerWithBusiness(page: Page) {
+  const email = uniqueEmail("owner");
+  createOwner(email);
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await enrolTwoStep(page);
+  await page.getByLabel("Business name").fill(`Linden Studio ${Math.random().toString(36).slice(2, 7)}`);
+  await page.locator("label", { hasText: "Hair salon" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Venue name").fill("Old Town");
+  await page.getByLabel("Street and number").fill("Kalku iela 1");
+  await page.getByLabel("Postcode").fill("LV-1050");
+  await page.getByLabel("City").fill("Riga");
+  await page.getByLabel("Country").selectOption("LV");
+  await page.getByRole("button", { name: "Find on the map" }).click();
+  await page.getByLabel("Name customers see").fill("Marta");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await page.getByRole("link", { name: "Go to your dashboard" }).click();
+  await expect(page.getByRole("heading", { name: "Your business is in review" })).toBeVisible();
+}
+
+export async function addService(page: Page, name: string, price: string) {
+  await page.getByRole("main").getByRole("button", { name: "Add service" }).first().click();
+  const panel = page.getByRole("region", { name: "New service" });
+  await panel.getByLabel("Name").fill(name);
+  await panel.getByLabel("Price").fill(price);
+  await panel.getByRole("button", { name: "Add service" }).click();
+  await expect(page.getByRole("status")).toHaveText(`Added ${name}.`);
+}
+
 /** Runs `async def main(db)` against the e2e database, with the API's own code. */
 function apiPython(body: string, args: Record<string, string>): string {
   const script = `import asyncio, os

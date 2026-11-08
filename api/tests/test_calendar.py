@@ -379,6 +379,9 @@ async def test_owner_sees_every_column_with_shifts_and_bookings(client: AsyncCli
     assert [b["id"] for b in board["bookings"]] == [booking["id"]]
     assert board["can_block_time"] is True
     assert sorted(board["can_book_staff_ids"]) == sorted([ids["staff"], ilze])
+    [service] = board["services"]
+    assert service["id"] == ids["service"]
+    assert sorted(service["staff_ids"]) == sorted([ids["staff"], ilze])
     # A day off has columns but no shifts.
     monday = (await client.get(f"/businesses/{ids['business']}/calendar?date={WEEK}")).json()
     assert [c["shift"] for c in monday["staff"]] == [None, None]
@@ -410,6 +413,7 @@ async def test_calendar_view_shows_only_your_own_column(client: AsyncClient) -> 
         assert all(b["staff_id"] == ids["staff"] for b in board["bookings"])
         assert board["can_block_time"] is False
         assert board["can_book_staff_ids"] == []
+        assert board["services"] == []
         assert (await staff.get(f"/bookings/{theirs['id']}")).status_code == 404
 
 
@@ -451,6 +455,7 @@ async def test_appointments_own_books_and_cancels_on_your_own_column(client: Asy
     async with staff_login(client, ids["staff"], "calendar.view", "appointments.own") as staff:
         board = (await staff.get(f"/businesses/{ids['business']}/calendar?date={DAY}")).json()
         assert board["can_book_staff_ids"] == [ids["staff"]]
+        assert [s["id"] for s in board["services"]] == [ids["service"]]
         booking = await book(staff, ids)
         assert booking["source"] == "owner"
         moved = await staff.patch(f"/bookings/{booking['id']}", json={"start": f"{DAY}T11:00"})

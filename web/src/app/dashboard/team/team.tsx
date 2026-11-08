@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import {
@@ -76,9 +76,14 @@ export function TeamPage() {
           <h1 className="text-3xl font-bold tracking-tight">Team</h1>
           <p className="mt-1 text-muted">Who works with you, what they do and what they may see.</p>
         </div>
-        <Button onClick={() => setSelected("new")}>
-          <Icon name="team" /> Add team member
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/dashboard/team/shifts" variant="secondary">
+            <Icon name="clock" /> Weekly shifts
+          </ButtonLink>
+          <Button onClick={() => setSelected("new")}>
+            <Icon name="team" /> Add team member
+          </Button>
+        </div>
       </div>
       <FormError message={error} />
       {notice && (

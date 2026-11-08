@@ -419,6 +419,7 @@ async def _my_out(db: AsyncSession, staff: StaffProfile) -> MyStaffOut:
     active = await _active_flags(db, staff.id)
     return MyStaffOut(
         id=staff.id,
+        business_id=staff.business_id,
         display_name=staff.display_name,
         title=staff.title,
         business_name=business_name,

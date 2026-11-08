@@ -15,7 +15,7 @@ import { logOut, useMe } from "@/lib/use-me";
 
 const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard", label: "Home", icon: "home" },
-  { href: "/dashboard/calendar", label: "Calendar", icon: "calendar", soon: true },
+  { href: "/dashboard/calendar", label: "Calendar", icon: "calendar" },
   { href: "/dashboard/team", label: "Team", icon: "team" },
   { href: "/dashboard/services", label: "Services", icon: "services" },
   { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
@@ -170,7 +170,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </div>
-      <main id="main" className="mx-auto flex w-full max-w-5xl min-w-0 flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
+      <main
+        id="main"
+        className={cn(
+          "mx-auto flex w-full min-w-0 flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10",
+          // The day board uses the full width; everything else keeps a readable measure.
+          pathname === "/dashboard/calendar" ? "max-w-[100rem]" : "max-w-5xl",
+        )}
+      >
         <FormError message={meError ?? error} />
         {business ? (
           <BusinessContext value={{ business, reload }}>{children}</BusinessContext>

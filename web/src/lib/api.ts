@@ -73,6 +73,7 @@ export type Permission = { flag: Flag; granted: boolean };
 
 export type MyStaff = {
   id: string;
+  business_id: string;
   display_name: string;
   title: string;
   business_name: string;
@@ -80,6 +81,98 @@ export type MyStaff = {
   services: string[];
   permissions: Flag[];
 };
+
+/** One staff member's hours on one day of a dated week. Times are "HH:MM" at the location. */
+export type Shift = { staff_id: string; day: number; starts: string; ends: string };
+
+export type TimeOff = { id: string; staff_id: string; starts_at: string; ends_at: string; reason: string };
+
+export type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+
+export type Booking = {
+  id: string;
+  staff_id: string;
+  service_id: string;
+  service_name: string;
+  client_name: string;
+  starts_at: string;
+  ends_at: string;
+  status: BookingStatus;
+  source: "consumer" | "owner";
+  price_minor: number;
+  currency: string;
+};
+
+export type BookingDetail = Booking & { guest_phone: string | null; guest_email: string | null; notes: string };
+
+export type BookableService = {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price_minor: number;
+  currency: string;
+  staff_ids: string[];
+};
+
+export type DayBoard = {
+  date: string;
+  location_id: string;
+  timezone: string;
+  locations: { id: string; name: string }[];
+  staff: { id: string; display_name: string; title: string; shift: { starts: string; ends: string } | null }[];
+  bookings: Booking[];
+  time_off: TimeOff[];
+  services: BookableService[];
+  can_block_time: boolean;
+  can_book_staff_ids: string[];
+};
+
+/** "YYYY-MM-DD" for a calendar date, without time zone surprises. */
+export function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** A "YYYY-MM-DD" string as a local Date at noon, so adding days never crosses a clock change. */
+export function parseDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
+export function addDays(iso: string, days: number): string {
+  const d = parseDate(iso);
+  d.setDate(d.getDate() + days);
+  return isoDate(d);
+}
+
+/** The Monday of the week holding this date. */
+export function mondayOf(iso: string): string {
+  return addDays(iso, -((parseDate(iso).getDay() + 6) % 7));
+}
+
+/** Minutes after local midnight of an instant, in the location's time zone. */
+export function minutesAt(instant: string, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date(instant))
+    .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+  return Number(parts.hour) * 60 + Number(parts.minute);
+}
+
+/** The "YYYY-MM-DD" date of an instant in the location's time zone. */
+export function dayAt(instant: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(instant),
+  );
+}
+
+/** "HH:MM" for a number of minutes after midnight. */
+export function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+export function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
 
 /** HLD 9: what each grantable permission lets an employee do, in the owner's words. */
 export const FLAGS: Record<Flag, { label: string; meaning: string }> = {
