@@ -77,6 +77,40 @@ body {
   outline-offset: 2px;
 }
 
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* A step or panel replacing another: key the element so it replays. */
+.slide-in {
+  animation: slide-in 0.45s var(--ease-out) both;
+}
+
+.pop {
+  animation: pop 0.4s var(--ease-out) both;
+}
+
 /* Staggered entrance: set --delay on the element. */
 .rise {
   animation: var(--animate-rise);
@@ -84,7 +118,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .slide-in,
+  .pop {
     animation: none;
   }
 

@@ -228,6 +228,23 @@ async def test_admin_sees_submitted_businesses_only(client: AsyncClient) -> None
     assert queue[0]["location_count"] == 1
 
 
+async def test_admin_sees_the_details_of_one_business(client: AsyncClient) -> None:
+    await owner(client)
+    business_id = await onboarded(client)
+    async with new_client() as admin:
+        await platform_admin(admin)
+        response = await admin.get(f"/admin/businesses/{business_id}")
+        missing = await admin.get("/admin/businesses/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 200
+    detail = response.json()
+    assert detail["name"] == "Linden Studio"
+    assert [p["address_text"] for p in detail["locations"]] == [
+        "Kalku iela 1, LV-1050 Riga, Latvia"
+    ]
+    assert [s["display_name"] for s in detail["staff"]] == ["Marta"]
+    assert missing.status_code == 404
+
+
 async def test_admin_approves(client: AsyncClient) -> None:
     await owner(client)
     business_id = await onboarded(client)
@@ -293,6 +310,7 @@ async def test_owners_cannot_use_admin_endpoints(client: AsyncClient) -> None:
     await owner(client)
     business_id = await onboarded(client)
     assert (await client.get("/admin/businesses")).status_code == 403
+    assert (await client.get(f"/admin/businesses/{business_id}")).status_code == 403
     assert (await client.patch(f"/admin/businesses/{business_id}/approve")).status_code == 403
 
 

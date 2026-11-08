@@ -33,6 +33,7 @@ submitted for review, and a platform admin can approve it or reject it with a re
 | `GET /businesses/{id}/staff` | That owner | |
 | `POST /businesses/{id}/submit` | That owner | Needs a location and a staff member; resubmits after a rejection |
 | `GET /admin/businesses?status=` | Platform admin, MFA done | Submitted businesses only |
+| `GET /admin/businesses/{id}` | Platform admin | Locations and team, for the review panel |
 | `PATCH /admin/businesses/{id}/approve` | Platform admin | Pending and submitted only, else 409 |
 | `PATCH /admin/businesses/{id}/reject` | Platform admin | Reason from the HLD 6 list; a note is required for "Other" |
 

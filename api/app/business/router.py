@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import audit
 from app.business.models import ApprovalStatus, Business, Location, StaffProfile
 from app.business.schemas import (
+    AdminBusinessDetail,
     AdminBusinessOut,
     BusinessIn,
     BusinessOut,
@@ -280,6 +281,26 @@ async def review_queue(
             )
         )
     return out
+
+
+@admin_router.get("/businesses/{business_id}")
+async def review_detail(business_id: uuid.UUID, auth: Admin, db: Db) -> AdminBusinessDetail:
+    business = await db.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    places = await db.scalars(
+        select(Location).where(Location.business_id == business.id).order_by(Location.created_at)
+    )
+    staff = await db.scalars(
+        select(StaffProfile)
+        .where(StaffProfile.business_id == business.id)
+        .order_by(StaffProfile.created_at)
+    )
+    return AdminBusinessDetail(
+        **_out(business).model_dump(),
+        locations=[LocationOut.model_validate(p, from_attributes=True) for p in places],
+        staff=[_staff_out(s) for s in staff],
+    )
 
 
 @admin_router.patch("/businesses/{business_id}/approve")

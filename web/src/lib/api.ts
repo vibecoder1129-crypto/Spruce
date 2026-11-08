@@ -43,6 +43,8 @@ export type Place = {
 
 export type Staff = { id: string; display_name: string; title: string; location_id: string; has_login: boolean };
 
+export type AdminBusinessDetail = Business & { locations: Place[]; staff: Staff[] };
+
 export type Country = { code: string; name: string; timezones: string[] };
 
 export const CATEGORIES: Record<string, string> = {

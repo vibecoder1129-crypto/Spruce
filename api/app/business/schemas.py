@@ -100,3 +100,8 @@ class RejectIn(Strict):
 class AdminBusinessOut(BusinessOut):
     location_count: int
     staff_count: int
+
+
+class AdminBusinessDetail(BusinessOut):
+    locations: list[LocationOut]
+    staff: list[StaffOut]
