@@ -18,7 +18,7 @@ export function useMe(role: Me["role"]) {
     api<Me>("/me")
       .then((m) => (m.mfa_pending || m.role !== role ? router.replace(nextStep(m)) : setMe(m)))
       .catch((e: unknown) => {
-        if (e instanceof ApiError && e.status === 401) router.replace("/login");
+        if (e instanceof ApiError && e.status === 401) router.replace("/login?signed-out");
         else setError(e instanceof Error ? e.message : "That didn't work.");
       });
   }, [role, router]);

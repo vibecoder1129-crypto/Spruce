@@ -78,6 +78,8 @@ class StaffOut(BaseModel):
     title: str
     location_id: uuid.UUID
     has_login: bool
+    active: bool = True
+    service_ids: list[uuid.UUID] = []
 
 
 class CountryOut(BaseModel):

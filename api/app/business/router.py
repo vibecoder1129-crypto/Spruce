@@ -25,6 +25,7 @@ from app.identity.deps import Auth, Db, FullySignedIn
 from app.identity.models import Role
 from app.models_base import utcnow
 from app.ratelimit import hit
+from app.team.models import StaffService
 
 router = APIRouter(tags=["business"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -158,13 +159,29 @@ async def list_locations(business_id: uuid.UUID, auth: Owner, db: Db) -> list[Lo
     return [LocationOut.model_validate(r, from_attributes=True) for r in rows]
 
 
-def _staff_out(staff: StaffProfile) -> StaffOut:
+async def service_ids_by_staff(
+    db: AsyncSession, staff_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[uuid.UUID]]:
+    rows = await db.execute(
+        select(StaffService.staff_id, StaffService.service_id).where(
+            StaffService.staff_id.in_(staff_ids)
+        )
+    )
+    found: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for staff_id, service_id in rows:
+        found.setdefault(staff_id, []).append(service_id)
+    return found
+
+
+def _staff_out(staff: StaffProfile, service_ids: list[uuid.UUID] | None = None) -> StaffOut:
     return StaffOut(
         id=staff.id,
         display_name=staff.display_name,
         title=staff.title,
         location_id=staff.location_id,
         has_login=staff.user_id is not None,
+        active=staff.active,
+        service_ids=sorted(service_ids or []),
     )
 
 
@@ -204,9 +221,11 @@ async def list_staff(business_id: uuid.UUID, auth: Owner, db: Db) -> list[StaffO
     rows = await db.scalars(
         select(StaffProfile)
         .where(StaffProfile.business_id == business.id)
-        .order_by(StaffProfile.created_at)
+        .order_by(StaffProfile.active.desc(), StaffProfile.created_at)
     )
-    return [_staff_out(r) for r in rows]
+    staff = list(rows)
+    services = await service_ids_by_staff(db, [s.id for s in staff])
+    return [_staff_out(s, services.get(s.id)) for s in staff]
 
 
 async def _counts(db: AsyncSession, business_id: uuid.UUID) -> tuple[int, int]:

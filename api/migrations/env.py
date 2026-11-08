@@ -1,11 +1,13 @@
 import asyncio
+import sys
 
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import app.audit
 import app.business.models
-import app.identity.models  # noqa: F401
+import app.identity.models
+import app.team.models  # noqa: F401
 from app.config import get_settings
 from app.db import Base
 
@@ -34,4 +36,7 @@ async def run_online() -> None:
 if context.is_offline_mode():
     run_offline()
 else:
-    asyncio.run(run_online())
+    # psycopg's async mode can't use Windows' default Proactor loop.
+    asyncio.run(
+        run_online(), loop_factory=asyncio.SelectorEventLoop if sys.platform == "win32" else None
+    )

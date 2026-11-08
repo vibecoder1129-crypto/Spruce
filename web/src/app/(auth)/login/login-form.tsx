@@ -2,21 +2,30 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PasswordField } from "@/components/ui/password-field";
 import { api, nextStep, type Me } from "@/lib/api";
+import { useFieldErrors } from "@/lib/form-errors";
 
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { errors, check, clear } = useFieldErrors();
+  // Set when a signed-in page found no session: it expired, they logged out, or access changed.
+  const signedOut = useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).has("signed-out"),
+    () => false,
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -44,10 +53,33 @@ export function LoginForm() {
         </>
       }
     >
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
+      <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
-        <Field label="Email" name="email" type="email" autoComplete="email" required autoFocus />
-        <PasswordField label="Password" name="password" autoComplete="current-password" required />
+        {signedOut && !error && (
+          <p role="status" className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
+            You&apos;re signed out. Log in to continue.
+          </p>
+        )}
+        <Field
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          data-missing="Enter your email."
+          error={errors.email}
+          onInput={() => clear("email")}
+          required
+          autoFocus
+        />
+        <PasswordField
+          label="Password"
+          name="password"
+          autoComplete="current-password"
+          data-missing="Enter your password."
+          error={errors.password}
+          onInput={() => clear("password")}
+          required
+        />
         <Button type="submit" size="lg" loading={busy}>
           Log in
         </Button>

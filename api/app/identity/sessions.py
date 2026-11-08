@@ -8,10 +8,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
+from app.business.models import StaffProfile
 from app.config import get_settings
 from app.cookies import ACCESS_COOKIE, REFRESH_COOKIE, clear_cookie, set_cookie
 from app.crypto import hash_token, new_token
-from app.identity.models import MFA_REQUIRED_ROLES, Session, User
+from app.identity.models import MFA_REQUIRED_ROLES, Role, Session, User
 from app.models_base import utcnow
 
 
@@ -30,8 +31,13 @@ async def start_session(
     db: AsyncSession, user: User, response: Response, *, mfa_verified: bool = False
 ) -> Session:
     now = utcnow()
+    staff_id = None
+    if user.role is Role.staff:
+        staff_id = await db.scalar(select(StaffProfile.id).where(StaffProfile.user_id == user.id))
     session = Session(
         user_id=user.id,
+        # Revoking one of this employee's permissions ends every session carrying this id.
+        staff_id=staff_id,
         expires_at=now + timedelta(seconds=get_settings().session_ttl_seconds),
         mfa_verified=mfa_verified or user.role not in MFA_REQUIRED_ROLES,
     )
@@ -90,6 +96,15 @@ async def revoke_all(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(
         update(Session)
         .where(Session.user_id == user_id, Session.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
+
+
+async def revoke_staff(db: AsyncSession, staff_id: uuid.UUID) -> None:
+    """End every live session of one employee, inside the caller's transaction (LLD 5.3)."""
+    await db.execute(
+        update(Session)
+        .where(Session.staff_id == staff_id, Session.revoked_at.is_(None))
         .values(revoked_at=utcnow())
     )
 

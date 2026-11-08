@@ -16,8 +16,8 @@ import { logOut, useMe } from "@/lib/use-me";
 const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard", label: "Home", icon: "home" },
   { href: "/dashboard/calendar", label: "Calendar", icon: "calendar", soon: true },
-  { href: "/dashboard/team", label: "Team", icon: "team", soon: true },
-  { href: "/dashboard/services", label: "Services", icon: "services", soon: true },
+  { href: "/dashboard/team", label: "Team", icon: "team" },
+  { href: "/dashboard/services", label: "Services", icon: "services" },
   { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
   { href: "/dashboard/reviews", label: "Reviews", icon: "reviews", soon: true },
   { href: "/dashboard/settings", label: "Settings", icon: "settings", soon: true },

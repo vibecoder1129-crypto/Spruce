@@ -1,61 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-import * as OTPAuth from "otpauth";
+import { expect, test } from "@playwright/test";
 
-const PASSWORD = "correct horse battery";
-
-function uniqueEmail(tag: string) {
-  return `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.lv`;
-}
-
-async function expectAccessible(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(results.violations).toEqual([]);
-}
-
-/** Turns on two-step verification on the setup page and returns the authenticator. */
-async function enrolTwoStep(page: Page) {
-  await expect(page).toHaveURL(/\/account\/security$/);
-  await page.getByText("Can't scan? Enter the key by hand").click();
-  const secret = (await page.locator("details p").textContent())!.trim();
-  const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) });
-  await page.getByLabel("6-digit code").fill(totp.generate());
-  await page.getByRole("button", { name: "Turn on" }).click();
-  await page.getByRole("button", { name: "I've saved them" }).click();
-  return totp;
-}
-
-/** Platform admins are created from the command line only (slice 8 adds delegation). */
-function createAdmin(email: string) {
-  execFileSync(
-    "uv",
-    [
-      "run",
-      "python",
-      "-c",
-      `import asyncio, os
-from app.cli import create_admin
-from app.db import get_sessionmaker
-async def main():
-    async with get_sessionmaker()() as db:
-        await create_admin(db, os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"])
-asyncio.run(main())`,
-    ],
-    {
-      cwd: "../api",
-      env: {
-        ...process.env,
-        ADMIN_EMAIL: email,
-        ADMIN_PASSWORD: PASSWORD,
-        SPRUCE_DATA_KEY: "ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ=",
-        SPRUCE_INDEX_KEY: "aWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWk=",
-      },
-    },
-  );
-}
+import { createAdmin, enrolTwoStep, expectAccessible, PASSWORD, uniqueEmail } from "./helpers";
 
 test("an owner onboards, waits for review, and an admin approves the business", async ({ page, browser }) => {
   const name = `Linden Studio ${Math.random().toString(36).slice(2, 7)}`;
@@ -63,13 +8,19 @@ test("an owner onboards, waits for review, and an admin approves the business", 
   await page.goto("/signup?as=business");
   await page.getByLabel("Email").fill(uniqueEmail("owner"));
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await enrolTwoStep(page);
 
   // Step 1: business
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.getByRole("heading", { name: "Tell us about your business" })).toBeVisible();
+  await expectAccessible(page);
+  // Nothing filled in: each problem shows under its field, and nothing is sent.
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByLabel("Business name")).toBeFocused();
+  await expect(page.getByLabel("Business name")).toHaveAccessibleDescription(/Enter your business name\./);
+  await expect(page.getByText("Choose what you offer.")).toBeVisible();
   await expectAccessible(page);
   await page.getByLabel("Business name").fill(name);
   await page.locator("label", { hasText: "Hair salon" }).click();
@@ -140,7 +91,7 @@ test("an admin rejects with a reason and the owner resubmits", async ({ page, br
   await page.goto("/signup?as=business");
   await page.getByLabel("Email").fill(uniqueEmail("owner"));
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await enrolTwoStep(page);
   await page.getByLabel("Business name").fill(name);
@@ -170,6 +121,9 @@ test("an admin rejects with a reason and the owner resubmits", async ({ page, br
   await admin.getByRole("button", { name: new RegExp(name) }).click();
   const panel = admin.getByRole("region", { name });
   await panel.getByRole("button", { name: "Reject…" }).click();
+  // No reason chosen: the form says so and sends nothing.
+  await panel.getByRole("button", { name: `Reject ${name}` }).click();
+  await expect(panel.getByText("Choose a reason. The owner sees it.")).toBeVisible();
   await panel.locator("label", { hasText: "Profile is incomplete" }).click();
   await panel.getByLabel(/Note for the owner/).fill("Please add a photo of the venue.");
   await expectAccessible(admin);

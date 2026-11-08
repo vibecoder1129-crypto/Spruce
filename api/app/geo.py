@@ -49,6 +49,25 @@ COUNTRIES: dict[str, tuple[str, tuple[str, ...]]] = {
     "SK": ("Slovakia", ("Europe/Bratislava",)),
 }
 
+# The currency a business in each country prices in. Everyone else uses the euro.
+CURRENCY: dict[str, str] = {
+    "CZ": "CZK",
+    "DK": "DKK",
+    "HU": "HUF",
+    "PL": "PLN",
+    "RO": "RON",
+    "SE": "SEK",
+    "IS": "ISK",
+    "NO": "NOK",
+    "CH": "CHF",
+    "LI": "CHF",
+}
+
+
+def currency_for(country_code: str) -> str:
+    return CURRENCY.get(country_code, "EUR")
+
+
 NOT_FOUND = "We couldn't find that address. Check the street, postcode and city."
 
 

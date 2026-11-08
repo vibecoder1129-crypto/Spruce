@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, CATEGORIES, REJECT_REASONS, type Place, type Staff } from "@/lib/api";
+import { api, CATEGORIES, REJECT_REASONS, type Place, type Service, type Staff } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 import { useBusiness } from "./shell";
@@ -23,16 +24,19 @@ export default function DashboardHome() {
   const { business } = useBusiness();
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [staff, setStaff] = useState<Staff[] | null>(null);
+  const [services, setServices] = useState<Service[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       api<Place[]>(`/businesses/${business.id}/locations`),
       api<Staff[]>(`/businesses/${business.id}/staff`),
+      api<Service[]>(`/businesses/${business.id}/services`),
     ])
-      .then(([p, s]) => {
+      .then(([p, s, sv]) => {
         setPlaces(p);
         setStaff(s);
+        setServices(sv);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "That didn't work."));
   }, [business.id]);
@@ -47,7 +51,11 @@ export default function DashboardHome() {
       <ReviewTracker />
       <FormError message={error} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <Checklist placeCount={places?.length ?? 0} staffCount={staff?.length ?? 0} />
+        <Checklist
+          placeCount={places?.length ?? 0}
+          staffCount={staff?.length ?? 0}
+          serviceCount={services?.filter((sv) => sv.active).length ?? 0}
+        />
         <div className="flex flex-col gap-6">
           <section aria-labelledby="places-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(160)}>
             <h2 id="places-title" className="text-lg font-bold">
@@ -72,9 +80,17 @@ export default function DashboardHome() {
             </ul>
           </section>
           <section aria-labelledby="team-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(220)}>
-            <h2 id="team-title" className="text-lg font-bold">
-              Team
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="team-title" className="text-lg font-bold">
+                Team
+              </h2>
+              <Link
+                href="/dashboard/team"
+                className="-my-2 flex min-h-11 items-center rounded-[var(--radius-control)] px-3 text-sm font-semibold text-spruce hover:bg-mint"
+              >
+                Manage<span className="sr-only"> team</span>
+              </Link>
+            </div>
             <ul className="mt-4 flex flex-col gap-3">
               {staff?.map((s, i) => (
                 <li key={s.id} className="flex items-center gap-3">
@@ -119,7 +135,7 @@ function ReviewTracker() {
   }[status];
   const body = {
     pending: "A person on the Spruce team is checking your details. This page updates when they're done.",
-    approved: "Next you'll add services and opening hours, so customers can book.",
+    approved: "Next, add your services and prices. Opening hours and online booking come in the next release.",
     rejected: "",
     suspended: "Your business is hidden from customers. Contact Spruce support to find out why.",
   }[status];
@@ -228,12 +244,20 @@ function ReviewTracker() {
 }
 
 /** What the owner has done and what comes next. Later items are honest about not being ready. */
-function Checklist({ placeCount, staffCount }: { placeCount: number; staffCount: number }) {
-  const items = [
+function Checklist({
+  placeCount,
+  staffCount,
+  serviceCount,
+}: {
+  placeCount: number;
+  staffCount: number;
+  serviceCount: number;
+}) {
+  const items: { label: string; done: boolean; href?: string; next?: boolean }[] = [
     { label: "Business details", done: true },
     { label: "First location", done: placeCount > 0 },
-    { label: "First team member", done: staffCount > 0 },
-    { label: "Services and prices", done: false, next: true },
+    { label: "First team member", done: staffCount > 0, href: "/dashboard/team" },
+    { label: "Services and prices", done: serviceCount > 0, href: "/dashboard/services" },
     { label: "Opening hours", done: false, next: true },
   ];
   const doneCount = items.filter((i) => i.done).length;
@@ -273,34 +297,53 @@ function Checklist({ placeCount, staffCount }: { placeCount: number; staffCount:
             Get ready for bookings
           </h2>
           <p className="text-sm text-muted">
-            {doneCount} of {items.length} done. The rest open in the next release.
+            {doneCount} of {items.length} done.{" "}
+            {items.some((i) => !i.done && i.href) ? "Pick up where you left off below." : "The rest opens in the next release."}
           </p>
         </div>
       </div>
       <ul className="flex flex-col gap-1">
-        {items.map((item) => (
-          <li
-            key={item.label}
-            className={cn(
-              "flex min-h-11 items-center gap-3 rounded-[var(--radius-control)] px-3",
-              item.done ? "bg-mint/60" : "",
-            )}
-          >
-            <span
-              className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-full",
-                item.done ? "bg-spruce text-white" : "border-2 border-dashed border-line-strong",
+        {items.map((item) => {
+          const todo = !item.done && item.href;
+          const body = (
+            <>
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full",
+                  item.done ? "bg-spruce text-white" : todo ? "border-2 border-spruce" : "border-2 border-dashed border-line-strong",
+                )}
+              >
+                {item.done && <Icon name="check" width={13} height={13} strokeWidth={3} />}
+              </span>
+              <span className={cn("flex-1 text-sm font-semibold", !item.done && !todo && "text-muted")}>
+                {item.label}
+                <span className="sr-only">{item.done ? ", done" : todo ? ", to do" : ", not yet available"}</span>
+              </span>
+              {item.next && <span className="text-xs font-semibold text-muted">Next release</span>}
+              {todo && (
+                <span className="flex items-center gap-1 text-xs font-bold tracking-[var(--tracking-label)] text-spruce uppercase">
+                  Start
+                  <Icon name="arrow" width={14} height={14} />
+                </span>
               )}
-            >
-              {item.done && <Icon name="check" width={13} height={13} strokeWidth={3} />}
-            </span>
-            <span className={cn("flex-1 text-sm font-semibold", !item.done && "text-muted")}>
-              {item.label}
-              <span className="sr-only">{item.done ? ", done" : ", not yet available"}</span>
-            </span>
-            {item.next && <span className="text-xs font-semibold text-muted">Next release</span>}
-          </li>
-        ))}
+            </>
+          );
+          const row = "flex min-h-11 items-center gap-3 rounded-[var(--radius-control)] px-3";
+          return (
+            <li key={item.label}>
+              {todo ? (
+                <Link
+                  href={item.href!}
+                  className={cn(row, "border border-spruce/30 bg-surface transition-colors duration-200 hover:bg-mint")}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div className={cn(row, item.done && "bg-mint/60")}>{body}</div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

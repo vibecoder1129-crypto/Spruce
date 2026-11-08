@@ -70,7 +70,9 @@ class Session(IdMixin, CreatedMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    staff_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # FK added with staff in slice 3
+    staff_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("staff_profiles.id", ondelete="CASCADE")
+    )
     access_token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True, nullable=False)
     access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     refresh_token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True, nullable=False)

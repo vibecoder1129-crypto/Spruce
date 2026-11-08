@@ -36,7 +36,7 @@ test("a customer signs up, lands on their account and logs out", async ({ page }
   await expectAccessible(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/account$/);
@@ -80,7 +80,7 @@ test("a business owner is taken through two-step setup before onboarding", async
   await expect(page.getByRole("radio", { name: /I run a business/ })).toBeChecked();
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/account\/security$/);
@@ -88,10 +88,10 @@ test("a business owner is taken through two-step setup before onboarding", async
   await expectAccessible(page);
 
   await page.getByText("Can't scan? Enter the key by hand").click();
-  const secret = (await page.locator("details p").textContent())!.trim();
+  const secret = (await page.locator("details p").textContent())!.replace(/\s/g, "");
   const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) });
+  // The sixth digit submits the code; there's no button to press.
   await page.getByLabel("6-digit code").fill(totp.generate());
-  await page.getByRole("button", { name: "Turn on" }).click();
 
   await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem")).toHaveCount(10);
@@ -107,9 +107,26 @@ test("a business owner is taken through two-step setup before onboarding", async
   await expect(page).toHaveURL(/\/login\/verify$/);
   await expectAccessible(page);
   await page.getByLabel("6-digit code").fill(totp.generate({ timestamp: Date.now() + 30_000 }));
-  await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
   expect(problems).toEqual([]);
+});
+
+test("signup says what is missing, next to the field, before sending anything", async ({ page }) => {
+  await page.goto("/signup");
+  await page.getByRole("button", { name: "Create account" }).click();
+  const email = page.getByLabel("Email");
+  await expect(email).toBeFocused();
+  await expect(email).toHaveAccessibleDescription("Enter your email.");
+  await expect(page.getByText("Choose a password.")).toBeVisible();
+  await expect(page.getByText("Tick this box to continue.")).toBeVisible();
+
+  await email.fill("marta@");
+  await page.getByLabel("Password").fill("short");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(email).toHaveAccessibleDescription("Enter an email like name@example.com.");
+  await expect(page.getByLabel("Password")).toHaveAccessibleDescription(/Use at least 12 characters\. You have 5\./);
+  await expect(page).toHaveURL(/\/signup$/);
+  await expectAccessible(page);
 });
 
 test("sign-in pages keep data on this origin", async ({ request }) => {

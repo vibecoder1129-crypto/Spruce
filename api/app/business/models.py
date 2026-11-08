@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -110,7 +111,7 @@ class Location(IdMixin, CreatedMixin, Base):
 
 
 class StaffProfile(IdMixin, CreatedMixin, Base):
-    """A professional at one location (LLD 3.1). Logins arrive in slice 3, so no user_id yet."""
+    """A professional at one location (LLD 3.1). user_id is set when they accept an invite."""
 
     __tablename__ = "staff_profiles"
 
@@ -121,7 +122,9 @@ class StaffProfile(IdMixin, CreatedMixin, Base):
         Uuid, ForeignKey("locations.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="SET NULL"), index=True
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), unique=True
     )
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)
     title: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    # Removing a staff member archives them, so their history stays.
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

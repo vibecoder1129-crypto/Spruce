@@ -17,6 +17,7 @@ from app.identity.router import me_router
 from app.identity.router import router as auth_router
 from app.logging import configure_logging
 from app.security import SecurityHeadersMiddleware
+from app.team.router import router as team_router
 
 log = logging.getLogger("spruce")
 
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(me_router)
     app.include_router(business_router)
     app.include_router(business_admin_router)
+    app.include_router(team_router)
     return app
 
 

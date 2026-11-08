@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
+import { TermsCheckbox } from "@/components/terms-checkbox";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PasswordField } from "@/components/ui/password-field";
 import { api, nextStep, type Me } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useFieldErrors } from "@/lib/form-errors";
 
 const roles = [
   { value: "consumer", title: "I want to book", text: "Find and book appointments near you." },
@@ -24,9 +26,11 @@ export function SignupForm() {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { errors, check, clear } = useFieldErrors();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -59,7 +63,7 @@ export function SignupForm() {
         </>
       }
     >
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
+      <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-semibold">What brings you here?</legend>
@@ -98,7 +102,16 @@ export function SignupForm() {
             ))}
           </div>
         </fieldset>
-        <Field label="Email" name="email" type="email" autoComplete="email" required />
+        <Field
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          data-missing="Enter your email."
+          error={errors.email}
+          onInput={() => clear("email")}
+          required
+        />
         <PasswordField
           label="Password"
           name="password"
@@ -106,22 +119,12 @@ export function SignupForm() {
           minLength={12}
           maxLength={128}
           hint="At least 12 characters. A short sentence works well."
+          data-missing="Choose a password."
+          error={errors.password}
+          onInput={() => clear("password")}
           required
         />
-        <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" name="terms" required className="mt-0.5 size-5 shrink-0 accent-spruce" />
-          <span>
-            I agree to the{" "}
-            <Link href="/terms" className="font-semibold text-spruce underline underline-offset-4">
-              Terms
-            </Link>{" "}
-            and have read the{" "}
-            <Link href="/privacy" className="font-semibold text-spruce underline underline-offset-4">
-              Privacy notice
-            </Link>
-            .
-          </span>
-        </label>
+        <TermsCheckbox error={errors.terms} onChange={() => clear("terms")} />
         {role === "owner" && (
           <p className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
             Business accounts use two-step verification. You&apos;ll set it up next, with an
