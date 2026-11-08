@@ -6,7 +6,7 @@ import { useState, type FormEvent } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 import { api } from "@/lib/api";
 
 export function ResetPasswordPage() {
@@ -46,10 +46,9 @@ export function ResetPasswordPage() {
     <AuthShell title="Choose a new password">
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
-        <Field
+        <PasswordField
           label="New password"
           name="password"
-          type="password"
           autoComplete="new-password"
           minLength={12}
           maxLength={128}

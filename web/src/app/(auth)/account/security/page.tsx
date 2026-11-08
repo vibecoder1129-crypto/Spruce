@@ -83,7 +83,7 @@ export default function SecuritySetupPage() {
 
   return (
     <AuthShell
-      title="Turn on two-step verification"
+      title={"Turn on two\u2011step verification"}
       intro="Scan the code with an authenticator app, such as Google Authenticator or 1Password, then enter the 6-digit code it shows."
     >
       <FormError message={error} />

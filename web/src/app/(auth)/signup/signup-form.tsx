@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 import { api, nextStep, type Me } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -67,9 +68,9 @@ export function SignupForm() {
               <label
                 key={r.value}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1 rounded-[var(--radius-control)] border p-4 transition-colors",
+                  "flex cursor-pointer flex-col gap-1 rounded-[var(--radius-control)] border p-4 transition-[background-color,border-color,box-shadow] duration-200",
                   "has-[:focus-visible]:outline has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-spruce",
-                  role === r.value ? "border-spruce bg-mint" : "border-line-strong bg-surface hover:bg-ground",
+                  role === r.value ? "border-spruce bg-mint shadow-[var(--shadow-focus-ring)]" : "border-line-strong bg-surface hover:bg-ground",
                 )}
               >
                 <input
@@ -80,17 +81,27 @@ export function SignupForm() {
                   onChange={() => setRole(r.value)}
                   className="sr-only"
                 />
-                <span className="font-semibold">{r.title}</span>
+                <span className="flex items-center justify-between gap-3 font-semibold">
+                  {r.title}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "grid size-5 shrink-0 place-items-center rounded-full border-2 transition-colors",
+                      role === r.value ? "border-spruce bg-spruce" : "border-line-strong bg-surface",
+                    )}
+                  >
+                    <span className={cn("size-1.5 rounded-full bg-white", role !== r.value && "hidden")} />
+                  </span>
+                </span>
                 <span className="text-sm text-muted">{r.text}</span>
               </label>
             ))}
           </div>
         </fieldset>
         <Field label="Email" name="email" type="email" autoComplete="email" required />
-        <Field
+        <PasswordField
           label="Password"
           name="password"
-          type="password"
           autoComplete="new-password"
           minLength={12}
           maxLength={128}
