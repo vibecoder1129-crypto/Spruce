@@ -172,6 +172,7 @@ async def test_storefront_shows_services_team_and_this_weeks_hours(client: Async
     assert store["name"] == "Linden Studio"
     assert [s["name"] for s in store["services"]] == ["Haircut"]
     assert store["services"][0]["price_minor"] == 3500
+    assert store["services"][0]["staff_ids"] == [staff_id]
     assert store["team"] == [{"id": staff_id, "display_name": "Marta", "title": "Stylist"}]
     [place] = store["locations"]
     assert place["timezone"] == "Europe/Riga"

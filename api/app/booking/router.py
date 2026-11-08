@@ -22,6 +22,7 @@ from app.booking.schemas import (
     CalendarOut,
     Column,
     DayShift,
+    MyBooking,
     PlaceOut,
     ShiftOut,
     ShiftsIn,
@@ -429,6 +430,7 @@ async def edit_booking(
     booking, actor = await _visible_booking(db, auth, booking_id)
     _changeable(booking, actor)
     changes = body.model_dump(exclude_none=True)
+    before = (booking.staff_id, booking.starts_at)
     if body.staff_id is not None or body.service_id is not None or body.start is not None:
         staff_id = body.staff_id or booking.staff_id
         if not actor.books(staff_id):
@@ -447,6 +449,7 @@ async def edit_booking(
             booking.price_minor, booking.currency = service.price_minor, service.currency
     if body.notes is not None:
         booking.notes = body.notes
+    moved = (booking.staff_id, booking.starts_at) != before
     audit(
         db,
         actor=auth.user.id,
@@ -457,11 +460,21 @@ async def edit_booking(
     )
     await _flush_booking(db)
     await db.commit()
+    if moved:
+        from app.booking import customer
+
+        await customer.notify(db, booking, "moved")
     return await _detail(db, booking)
 
 
 @router.patch("/bookings/{booking_id}/cancel")
-async def cancel_booking(booking_id: uuid.UUID, auth: FullySignedIn, db: Db) -> BookingDetail:
+async def cancel_booking(
+    booking_id: uuid.UUID, auth: FullySignedIn, db: Db
+) -> BookingDetail | MyBooking:
+    from app.booking import customer  # the customer side lives there and imports this module
+
+    if auth.user.role is Role.consumer:
+        return await customer.cancel_own(db, auth, booking_id)
     booking, actor = await _visible_booking(db, auth, booking_id)
     _changeable(booking, actor)
     booking.status = BookingStatus.cancelled
@@ -470,6 +483,7 @@ async def cancel_booking(booking_id: uuid.UUID, auth: FullySignedIn, db: Db) -> 
         db, actor=auth.user.id, action="booking.cancel", target_type="booking", target_id=booking.id
     )
     await db.commit()
+    await customer.notify(db, booking, "cancelled")
     return await _detail(db, booking)
 
 

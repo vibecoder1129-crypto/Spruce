@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -61,6 +61,7 @@ export default function DashboardHome() {
           shiftCount={shiftCount}
         />
         <div className="flex flex-col gap-6">
+          {business.approval_status === "approved" && <BookingLink businessId={business.id} name={business.name} />}
           <section aria-labelledby="places-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(160)}>
             <h2 id="places-title" className="text-lg font-bold">
               {places && places.length > 1 ? "Locations" : "Location"}
@@ -115,6 +116,76 @@ export default function DashboardHome() {
   );
 }
 
+/** Feature list 7.3: the venue's own link and a button for its website, Instagram bio or Google profile. */
+function BookingLink({ businessId, name }: { businessId: string; name: string }) {
+  // Known only in the browser; empty on the server.
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "",
+  );
+  const [copied, setCopied] = useState<"link" | "button" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const link = `${origin}/b/${businessId}/book`;
+  const escaped = name.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
+  const snippet =
+    `<a href="${link}" style="display:inline-block;padding:12px 24px;border-radius:999px;` +
+    `background:#1b4332;color:#fff;font:600 16px/1.2 sans-serif;text-decoration:none">Book at ${escaped}</a>`;
+
+  async function copy(what: "link" | "button", text: string) {
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      setTimeout(() => setCopied((c) => (c === what ? null : c)), 2500);
+    } catch {
+      setError("Your browser blocked copying. Select the text and copy it yourself.");
+    }
+  }
+
+  return (
+    <section aria-labelledby="link-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(100)}>
+      <h2 id="link-title" className="text-lg font-bold">
+        Your booking link
+      </h2>
+      <p className="mt-1 text-sm text-muted">Put it in your Instagram bio or Google profile, or add the button to your own website.</p>
+      <FormError message={error} />
+      <label htmlFor="booking-link" className="mt-4 block text-sm font-semibold">
+        Link
+      </label>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        <input
+          id="booking-link"
+          readOnly
+          value={link}
+          onFocus={(e) => e.currentTarget.select()}
+          className="min-h-11 min-w-0 flex-1 rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 text-sm"
+        />
+        <Button variant="secondary" onClick={() => copy("link", link)}>
+          <Icon name="copy" /> {copied === "link" ? "Copied" : "Copy link"}
+        </Button>
+      </div>
+      <label htmlFor="booking-button" className="mt-4 block text-sm font-semibold">
+        Button for your website
+      </label>
+      <textarea
+        id="booking-button"
+        readOnly
+        rows={3}
+        value={snippet}
+        onFocus={(e) => e.currentTarget.select()}
+        className="mt-1.5 w-full rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 py-2 font-mono text-xs"
+      />
+      <Button variant="secondary" className="mt-2" onClick={() => copy("button", snippet)}>
+        <Icon name="copy" /> {copied === "button" ? "Copied" : "Copy button code"}
+      </Button>
+      <p role="status" className="sr-only">
+        {copied ? "Copied to your clipboard." : ""}
+      </p>
+    </section>
+  );
+}
+
 /** Where the business is in review: set up, checked by Spruce, then live. */
 function ReviewTracker() {
   const { business, reload } = useBusiness();
@@ -139,7 +210,7 @@ function ReviewTracker() {
   }[status];
   const body = {
     pending: "A person on the Spruce team is checking your details. This page updates when they're done.",
-    approved: "Next, add your services and plan this week's shifts. Then take walk-ins on the calendar. Online booking comes in the next release.",
+    approved: "Next, add your services and plan this week's shifts. Then share your booking link so customers can book online.",
     rejected: "",
     suspended: "Your business is hidden from customers. Contact Spruce support to find out why.",
   }[status];

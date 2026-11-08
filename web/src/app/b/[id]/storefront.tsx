@@ -9,7 +9,7 @@ import { Icon } from "@/components/icons";
 import { FavoriteButton } from "@/components/marketplace/favorite-button";
 import { VenueMap } from "@/components/marketplace/venue-map";
 import { PublicHeader } from "@/components/public-header";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import {
   api,
   ApiError,
@@ -88,7 +88,10 @@ export function StorefrontPage() {
                   {store.locations.map((l) => l.address_text).join(" · ")} · You pay at the venue.
                 </p>
               </div>
-              <FavoriteButton businessId={store.id} name={store.name} me={me} saved={saved} onChange={setSaved} />
+              <div className="flex flex-wrap gap-2">
+                <ButtonLink href={`/b/${store.id}/book`}>Book now</ButtonLink>
+                <FavoriteButton businessId={store.id} name={store.name} me={me} saved={saved} onChange={setSaved} />
+              </div>
             </div>
 
             <section aria-labelledby="services" className="flex flex-col gap-4">
@@ -105,13 +108,19 @@ export function StorefrontPage() {
                           <span className="font-semibold">{s.name}</span>
                           <span className="ml-2 text-sm text-muted">{formatDuration(s.duration_minutes)}</span>
                         </span>
-                        <span className="font-semibold">{formatPrice(s.price_minor, s.currency)}</span>
+                        <span className="flex items-center gap-3">
+                          <span className="font-semibold">{formatPrice(s.price_minor, s.currency)}</span>
+                          {s.staff_ids.length > 0 && (
+                            <ButtonLink href={`/b/${store.id}/book?service=${s.id}`} variant="secondary">
+                              Book<span className="sr-only"> {s.name}</span>
+                            </ButtonLink>
+                          )}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ))}
-              <p className="text-sm text-muted">Online booking on Spruce opens soon.</p>
             </section>
 
             {store.team.length > 0 && (
