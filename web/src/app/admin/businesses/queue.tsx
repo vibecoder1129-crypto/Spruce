@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -39,6 +39,16 @@ export function ReviewQueue() {
   const [status, setStatus] = useState<ApprovalStatus>("pending");
   const [rows, setRows] = useState<AdminBusiness[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // On a phone the details sit under the list, so bring them into view.
+  function choose(id: string) {
+    setSelected(id);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -108,7 +118,7 @@ export function ReviewQueue() {
                 <button
                   type="button"
                   aria-pressed={selected === b.id}
-                  onClick={() => setSelected(b.id)}
+                  onClick={() => choose(b.id)}
                   className={cn(
                     "flex w-full items-center gap-4 rounded-[20px] border p-4 text-left transition-[border-color,background-color,box-shadow,transform] duration-200",
                     selected === b.id
@@ -131,7 +141,7 @@ export function ReviewQueue() {
               </li>
             ))}
           </ul>
-          <div className="lg:sticky lg:top-6">
+          <div ref={detailRef} className="scroll-mt-4 lg:sticky lg:top-6">
             {current ? (
               <Detail key={current.id} summary={current} onDecided={decided} />
             ) : (
@@ -162,6 +172,7 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<{ reason?: string; note?: string }>({});
   const noteId = useId();
 
   useEffect(() => {
@@ -264,13 +275,25 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
 
       {pending && rejecting && (
         <form
+          noValidate
           className="slide-in flex flex-col gap-4 border-t border-line pt-5"
           onSubmit={(e) => {
             e.preventDefault();
-            void act("reject");
+            const found = {
+              reason: reason ? undefined : "Choose a reason. The owner sees it.",
+              note: reason === "other" && !note.trim() ? "With Other, tell the owner what to change." : undefined,
+            };
+            setProblems(found);
+            if (found.reason) e.currentTarget.querySelector<HTMLInputElement>("input[name=reason]")?.focus();
+            else if (found.note) document.getElementById(noteId)?.focus();
+            else void act("reject");
           }}
         >
-          <fieldset className="flex flex-col gap-2">
+          <fieldset
+            className="flex flex-col gap-2"
+            aria-invalid={problems.reason ? true : undefined}
+            aria-describedby={problems.reason ? "reason-error" : undefined}
+          >
             <legend className="mb-2 text-sm font-semibold">Why are you rejecting it?</legend>
             <div className="flex flex-wrap gap-2">
               {Object.entries(REJECT_REASONS).map(([value, label]) => (
@@ -288,13 +311,21 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
                     value={value}
                     required
                     checked={reason === value}
-                    onChange={() => setReason(value)}
+                    onChange={() => {
+                      setReason(value);
+                      setProblems({});
+                    }}
                     className="sr-only"
                   />
                   {label}
                 </label>
               ))}
             </div>
+            {problems.reason && (
+              <p id="reason-error" className="text-sm font-medium text-danger">
+                {problems.reason}
+              </p>
+            )}
           </fieldset>
           <div className="flex flex-col gap-1.5">
             <label htmlFor={noteId} className="text-sm font-semibold">
@@ -306,10 +337,24 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
               maxLength={500}
               required={reason === "other"}
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setProblems((p) => ({ ...p, note: undefined }));
+              }}
               placeholder="Tell them what to change."
-              className="rounded-[var(--radius-control)] border border-line-strong bg-surface px-4 py-3 text-base placeholder:text-muted/70 focus:border-spruce focus:shadow-[var(--shadow-focus-ring)]"
+              aria-invalid={problems.note ? true : undefined}
+              aria-describedby={problems.note ? `${noteId}-error` : undefined}
+              className={cn(
+                "rounded-[var(--radius-control)] border bg-surface px-4 py-3 text-base placeholder:text-muted/70",
+                "focus:border-spruce focus:shadow-[var(--shadow-focus-ring)]",
+                problems.note ? "border-danger" : "border-line-strong",
+              )}
             />
+            {problems.note && (
+              <p id={`${noteId}-error`} className="text-sm font-medium text-danger">
+                {problems.note}
+              </p>
+            )}
           </div>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={() => setRejecting(false)}>

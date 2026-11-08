@@ -121,6 +121,9 @@ test("an admin rejects with a reason and the owner resubmits", async ({ page, br
   await admin.getByRole("button", { name: new RegExp(name) }).click();
   const panel = admin.getByRole("region", { name });
   await panel.getByRole("button", { name: "Reject…" }).click();
+  // No reason chosen: the form says so and sends nothing.
+  await panel.getByRole("button", { name: `Reject ${name}` }).click();
+  await expect(panel.getByText("Choose a reason. The owner sees it.")).toBeVisible();
   await panel.locator("label", { hasText: "Profile is incomplete" }).click();
   await panel.getByLabel(/Note for the owner/).fill("Please add a photo of the venue.");
   await expectAccessible(admin);
