@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 import { api, nextStep, type Me } from "@/lib/api";
 
 export function LoginForm() {
@@ -46,7 +47,7 @@ export function LoginForm() {
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
         <Field label="Email" name="email" type="email" autoComplete="email" required autoFocus />
-        <Field label="Password" name="password" type="password" autoComplete="current-password" required />
+        <PasswordField label="Password" name="password" autoComplete="current-password" required />
         <Button type="submit" size="lg" loading={busy}>
           Log in
         </Button>

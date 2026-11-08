@@ -59,6 +59,19 @@ test("a wrong password shows a clear error", async ({ page }) => {
   await expect(page.locator("main").getByRole("alert")).toHaveText("Email or password is incorrect.");
 });
 
+test("the password can be shown and hidden again", async ({ page }) => {
+  await page.goto("/login");
+  const password = page.getByLabel("Password");
+  await password.fill("a quiet morning walk");
+  await expect(password).toHaveAttribute("type", "password");
+  const toggle = page.getByRole("button", { name: "Show password" });
+  await toggle.click();
+  await expect(password).toHaveAttribute("type", "text");
+  await expect(page.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
+});
+
 test("a business owner is taken through two-step setup before their account", async ({ page, context }) => {
   const problems = watchConsole(page);
   const email = uniqueEmail("owner");

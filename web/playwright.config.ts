@@ -10,7 +10,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
-  use: { baseURL: `http://127.0.0.1:${port}`, trace: "off" },
+  // Reduced motion: axe measures contrast on a settled page, not mid-way through an entrance fade.
+  use: { baseURL: `http://127.0.0.1:${port}`, trace: "off", contextOptions: { reducedMotion: "reduce" } },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
