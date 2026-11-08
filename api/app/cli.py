@@ -6,6 +6,7 @@ Admin delegation from inside the app arrives in slice 8; until then this is the 
 import argparse
 import asyncio
 import getpass
+import sys
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +57,8 @@ def main() -> None:
             await create_admin(db, args.email, password)
         print("Admin created. They set up two-step verification at first login.")
 
-    asyncio.run(run())
+    # psycopg's async mode can't use Windows' default Proactor loop.
+    asyncio.run(run(), loop_factory=asyncio.SelectorEventLoop if sys.platform == "win32" else None)
 
 
 if __name__ == "__main__":

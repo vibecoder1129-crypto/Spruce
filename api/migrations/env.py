@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -35,4 +36,7 @@ async def run_online() -> None:
 if context.is_offline_mode():
     run_offline()
 else:
-    asyncio.run(run_online())
+    # psycopg's async mode can't use Windows' default Proactor loop.
+    asyncio.run(
+        run_online(), loop_factory=asyncio.SelectorEventLoop if sys.platform == "win32" else None
+    )
