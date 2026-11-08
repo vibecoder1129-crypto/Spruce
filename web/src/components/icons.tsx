@@ -18,6 +18,9 @@ const paths = {
   back: "M19 12H5M11 6l-6 6 6 6",
   store: "M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3M5 12v8h14v-8",
   shield: "M12 3.5 19 6v5.5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6z",
+  copy: "M9 9h10.5v10.5H9zM15 9V4.5H4.5V15H9",
+  download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
+  chevron: "m9.5 6 6 6-6 6",
 } as const;
 
 export type IconName = keyof typeof paths;

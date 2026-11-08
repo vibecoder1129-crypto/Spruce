@@ -20,10 +20,9 @@ export async function expectAccessible(page: Page) {
 export async function enrolTwoStep(page: Page) {
   await expect(page).toHaveURL(/\/account\/security$/);
   await page.getByText("Can't scan? Enter the key by hand").click();
-  const secret = (await page.locator("details p").textContent())!.trim();
+  const secret = (await page.locator("details p").textContent())!.replace(/\s/g, "");
   const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) });
   await page.getByLabel("6-digit code").fill(totp.generate());
-  await page.getByRole("button", { name: "Turn on" }).click();
   await page.getByRole("button", { name: "I've saved them" }).click();
   return totp;
 }

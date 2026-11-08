@@ -9,14 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PasswordField } from "@/components/ui/password-field";
 import { api, nextStep, type Me } from "@/lib/api";
+import { useFieldErrors } from "@/lib/form-errors";
 
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { errors, check, clear } = useFieldErrors();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -44,10 +47,28 @@ export function LoginForm() {
         </>
       }
     >
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
+      <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
-        <Field label="Email" name="email" type="email" autoComplete="email" required autoFocus />
-        <PasswordField label="Password" name="password" autoComplete="current-password" required />
+        <Field
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          data-missing="Enter your email."
+          error={errors.email}
+          onInput={() => clear("email")}
+          required
+          autoFocus
+        />
+        <PasswordField
+          label="Password"
+          name="password"
+          autoComplete="current-password"
+          data-missing="Enter your password."
+          error={errors.password}
+          onInput={() => clear("password")}
+          required
+        />
         <Button type="submit" size="lg" loading={busy}>
           Log in
         </Button>

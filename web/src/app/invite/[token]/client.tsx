@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
+import { TermsCheckbox } from "@/components/terms-checkbox";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/ui/password-field";
 import { api, ApiError } from "@/lib/api";
+import { useFieldErrors } from "@/lib/form-errors";
 
 type Preview = { business_name: string; display_name: string };
 
@@ -18,6 +20,7 @@ export function InvitePage() {
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { errors, check, clear } = useFieldErrors();
 
   useEffect(() => {
     api<Preview>(`/invites/${encodeURIComponent(token)}`)
@@ -30,6 +33,7 @@ export function InvitePage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -79,7 +83,7 @@ export function InvitePage() {
       title={`Join ${preview.business_name} on Spruce`}
       intro={`Hi ${preview.display_name}. Choose a password to sign in to your team page.`}
     >
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
+      <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
         <PasswordField
           label="Password"
@@ -87,24 +91,14 @@ export function InvitePage() {
           autoComplete="new-password"
           minLength={12}
           maxLength={128}
-          hint="At least 12 characters."
+          hint="At least 12 characters. A short sentence works well."
+          data-missing="Choose a password."
+          error={errors.password}
+          onInput={() => clear("password")}
           required
           autoFocus
         />
-        <label className="flex min-h-11 items-start gap-3 text-sm">
-          <input type="checkbox" name="terms" required className="mt-0.5 size-5 shrink-0 accent-spruce" />
-          <span>
-            I agree to the{" "}
-            <Link href="/terms" className="font-semibold text-spruce underline underline-offset-4">
-              terms
-            </Link>{" "}
-            and have read the{" "}
-            <Link href="/privacy" className="font-semibold text-spruce underline underline-offset-4">
-              privacy notice
-            </Link>
-            .
-          </span>
-        </label>
+        <TermsCheckbox error={errors.terms} onChange={() => clear("terms")} />
         <Button type="submit" size="lg" loading={busy}>
           Join the team
         </Button>

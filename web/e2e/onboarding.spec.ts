@@ -8,7 +8,7 @@ test("an owner onboards, waits for review, and an admin approves the business", 
   await page.goto("/signup?as=business");
   await page.getByLabel("Email").fill(uniqueEmail("owner"));
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await enrolTwoStep(page);
 
@@ -85,7 +85,7 @@ test("an admin rejects with a reason and the owner resubmits", async ({ page, br
   await page.goto("/signup?as=business");
   await page.getByLabel("Email").fill(uniqueEmail("owner"));
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
+  await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await enrolTwoStep(page);
   await page.getByLabel("Business name").fill(name);

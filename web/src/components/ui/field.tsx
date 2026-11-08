@@ -8,13 +8,14 @@ type FieldProps = ComponentProps<"input"> & {
   error?: string;
   /** A functional control inside the input's end, such as a show-password toggle. */
   trailing?: ReactNode;
+  inputClassName?: string;
 };
 
 /**
  * A labelled text input. The label, hint and error are wired to the input with
  * aria attributes, so assistive tech reads them in order.
  */
-export function Field({ label, hint, error, trailing, id, className, required, ...rest }: FieldProps) {
+export function Field({ label, hint, error, trailing, id, className, inputClassName, required, ...rest }: FieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const hintId = hint ? `${inputId}-hint` : undefined;
@@ -49,6 +50,7 @@ export function Field({ label, hint, error, trailing, id, className, required, .
             "focus:border-spruce focus:shadow-[var(--shadow-focus-ring)]",
             trailing != null && "pr-24",
             error ? "border-danger" : "border-line-strong hover:border-muted",
+            inputClassName,
           )}
           {...rest}
         />
