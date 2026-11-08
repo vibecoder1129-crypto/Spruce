@@ -67,6 +67,7 @@ export default function Home() {
           </Link>
           <nav aria-label="Main" className="flex items-center gap-1">
             {[
+              ["/search", "Find a venue"],
               ["#try", "Try booking"],
               ["#business", "For business"],
               ["#faq", "Questions"],
@@ -108,9 +109,12 @@ export default function Home() {
               Find salons, spas and studios near you, pick a real open slot, and pay at the venue.
             </p>
             <div className="rise mt-8 flex flex-wrap gap-3" style={delay(180)}>
-              <ButtonLink href="#try" size="lg">
-                Try booking
+              <ButtonLink href="/search" size="lg">
+                Find a venue
                 <Icon name="arrow" width={18} height={18} />
+              </ButtonLink>
+              <ButtonLink href="#try" variant="secondary" size="lg">
+                Try booking
               </ButtonLink>
               <ButtonLink href="/signup?as=business" variant="secondary" size="lg">
                 Grow your business

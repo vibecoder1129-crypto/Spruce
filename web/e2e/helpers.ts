@@ -41,7 +41,7 @@ async def main(db):
  * An owner account made directly in the database, so the suite stays under the per-IP signup
  * limit. Signing up through the page is covered by the onboarding tests.
  */
-export function createOwner(email: string) {
+export function createOwner(email: string, role: "owner" | "consumer" = "owner") {
   apiPython(
     `from app.crypto import email_index, encrypt, hash_password, normalize_email
 from app.identity.models import Role, User
@@ -53,12 +53,23 @@ async def main(db):
         email_index=email_index(email),
         email_encrypted=encrypt(normalize_email(email), "users.email"),
         password_hash=hash_password(os.environ["ARG_PASSWORD"]),
-        role=Role.owner,
+        role=Role[os.environ["ARG_ROLE"]],
         terms_version=TERMS_VERSION,
         terms_accepted_at=utcnow(),
     ))
     await db.commit()`,
-    { ARG_EMAIL: email, ARG_PASSWORD: PASSWORD },
+    { ARG_EMAIL: email, ARG_PASSWORD: PASSWORD, ARG_ROLE: role },
+  );
+}
+
+/** Stands in for a platform admin approving the business (the admin pages are tested on their own). */
+export function approveBusiness(name: string) {
+  apiPython(
+    `from sqlalchemy import text
+async def main(db):
+    await db.execute(text("UPDATE businesses SET approval_status = 'approved' WHERE name = :n"), {"n": os.environ["ARG_NAME"]})
+    await db.commit()`,
+    { ARG_NAME: name },
   );
 }
 
@@ -84,8 +95,8 @@ async def main(db):
   );
 }
 
-/** A new owner with a submitted business, one location and one team member (Marta). */
-export async function ownerWithBusiness(page: Page) {
+/** A new owner with a submitted business, one location and one team member (Marta). Returns its name. */
+export async function ownerWithBusiness(page: Page): Promise<string> {
   const email = uniqueEmail("owner");
   createOwner(email);
   await page.goto("/login");
@@ -93,7 +104,8 @@ export async function ownerWithBusiness(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
   await enrolTwoStep(page);
-  await page.getByLabel("Business name").fill(`Linden Studio ${Math.random().toString(36).slice(2, 7)}`);
+  const name = `Linden Studio ${Math.random().toString(36).slice(2, 7)}`;
+  await page.getByLabel("Business name").fill(name);
   await page.locator("label", { hasText: "Hair salon" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Venue name").fill("Old Town");
@@ -107,6 +119,7 @@ export async function ownerWithBusiness(page: Page) {
   await page.getByRole("button", { name: "Submit for review" }).click();
   await page.getByRole("link", { name: "Go to your dashboard" }).click();
   await expect(page.getByRole("heading", { name: "Your business is in review" })).toBeVisible();
+  return name;
 }
 
 export async function addService(page: Page, name: string, price: string) {
