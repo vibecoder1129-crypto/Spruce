@@ -115,6 +115,7 @@ test("an owner sets up services and a team member, who signs in until a permissi
   await expect(page.getByRole("status")).toContainText("Marta was signed out");
 
   await staff.reload();
-  await expect(staff).toHaveURL(/\/login$/);
+  await expect(staff).toHaveURL(/\/login\?signed-out$/);
+  await expect(staff.getByRole("status")).toHaveText("You're signed out. Log in to continue.");
   await staffContext.close();
 });

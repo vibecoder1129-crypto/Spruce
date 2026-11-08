@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,12 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { errors, check, clear } = useFieldErrors();
+  // Set when a signed-in page found no session: it expired, they logged out, or access changed.
+  const signedOut = useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).has("signed-out"),
+    () => false,
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,6 +55,11 @@ export function LoginForm() {
     >
       <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
+        {signedOut && !error && (
+          <p role="status" className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
+            You&apos;re signed out. Log in to continue.
+          </p>
+        )}
         <Field
           label="Email"
           name="email"

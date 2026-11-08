@@ -9,6 +9,7 @@ import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { useFieldErrors } from "@/lib/form-errors";
 import { api, ApiError, FLAGS, type MyStaff } from "@/lib/api";
 import { useMe } from "@/lib/use-me";
 
@@ -20,19 +21,21 @@ export function StaffHome() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { errors, check, clear } = useFieldErrors();
 
   useEffect(() => {
     if (!me) return;
     api<MyStaff>("/me/staff")
       .then(setMine)
       .catch((e: unknown) => {
-        if (e instanceof ApiError && e.status === 401) router.replace("/login");
+        if (e instanceof ApiError && e.status === 401) router.replace("/login?signed-out");
         else setError(e instanceof Error ? e.message : "That didn't work.");
       });
   }, [me, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -48,7 +51,7 @@ export function StaffHome() {
       );
       setNotice("Saved.");
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) router.replace("/login");
+      if (e instanceof ApiError && e.status === 401) router.replace("/login?signed-out");
       else setError(e instanceof Error ? e.message : "That didn't work.");
     } finally {
       setBusy(false);
@@ -134,16 +137,30 @@ export function StaffHome() {
               <h2 id="profile-title" className="text-lg font-bold">
                 Your profile
               </h2>
-              <form method="post" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+              <form
+                method="post"
+                noValidate
+                onSubmit={onSubmit}
+                onInput={() => clear("name")}
+                className="grid items-start gap-4 sm:grid-cols-2"
+              >
                 <Field
                   label="Name"
                   name="name"
                   defaultValue={mine.display_name}
                   maxLength={80}
                   hint="As customers see it."
+                  data-missing="Enter the name customers see."
+                  error={errors.name}
                   required
                 />
-                <Field label="Title" name="title" defaultValue={mine.title} maxLength={80} />
+                <Field
+                  label="Title"
+                  name="title"
+                  defaultValue={mine.title}
+                  maxLength={80}
+                  hint="Optional, for example Senior stylist."
+                />
                 <Button type="submit" loading={busy} className="sm:col-span-2 sm:justify-self-start">
                   Save profile
                 </Button>
