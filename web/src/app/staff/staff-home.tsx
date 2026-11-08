@@ -7,17 +7,21 @@ import { AppHeader } from "@/components/app-header";
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { useFieldErrors } from "@/lib/form-errors";
-import { api, ApiError, FLAGS, type MyStaff } from "@/lib/api";
+import { addDays, api, ApiError, FLAGS, isoDate, mondayOf, parseDate, type MyStaff, type Shift } from "@/lib/api";
 import { useMe } from "@/lib/use-me";
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** A staff member's own page: their profile, services and permissions (HLD 4.6). */
 export function StaffHome() {
   const router = useRouter();
   const { me, error: meError } = useMe("staff");
   const [mine, setMine] = useState<MyStaff | null>(null);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [monday, setMonday] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,8 +29,14 @@ export function StaffHome() {
 
   useEffect(() => {
     if (!me) return;
-    api<MyStaff>("/me/staff")
-      .then(setMine)
+    // The week is read in the browser, never at build time.
+    const week = mondayOf(isoDate(new Date()));
+    Promise.all([api<MyStaff>("/me/staff"), api<Shift[]>(`/me/shifts?week=${week}`)])
+      .then(([m, s]) => {
+        setMine(m);
+        setShifts(s);
+        setMonday(week);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) router.replace("/login?signed-out");
         else setError(e instanceof Error ? e.message : "That didn't work.");
@@ -85,6 +95,38 @@ export function StaffHome() {
                 {notice}
               </p>
             )}
+            <section
+              aria-labelledby="week-title"
+              className="rise flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-6"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="week-title" className="text-lg font-bold">
+                  Your week
+                </h2>
+                {mine.permissions.includes("calendar.view") && (
+                  <ButtonLink href="/staff/calendar" variant="secondary">
+                    <Icon name="calendar" /> Open calendar
+                  </ButtonLink>
+                )}
+              </div>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {DAYS.map((name, day) => {
+                  const shift = shifts.find((s) => s.day === day);
+                  return (
+                    <li
+                      key={name}
+                      className={`rounded-[var(--radius-control)] px-3 py-2 text-sm ${shift ? "bg-mint" : "bg-ground text-muted"}`}
+                    >
+                      <span className="block font-semibold text-ink">
+                        {name} {parseDate(addDays(monday, day)).getDate()}
+                      </span>
+                      {shift ? `${shift.starts}–${shift.ends}` : "Off"}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-sm text-muted">Your manager plans the shifts. Ask them if something needs to change.</p>
+            </section>
             <div className="grid gap-6 md:grid-cols-2">
               <section
                 aria-labelledby="services-title"
@@ -127,7 +169,6 @@ export function StaffHome() {
                 ) : (
                   <p className="text-sm text-muted">Nothing extra yet. Your manager decides what you can see and do.</p>
                 )}
-                <p className="text-sm text-muted">Your calendar arrives with the next release.</p>
               </section>
             </div>
             <section

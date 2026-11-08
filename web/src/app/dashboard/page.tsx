@@ -7,7 +7,7 @@ import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, CATEGORIES, REJECT_REASONS, type Place, type Service, type Staff } from "@/lib/api";
+import { api, CATEGORIES, isoDate, mondayOf, REJECT_REASONS, type Place, type Service, type Shift, type Staff } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 import { useBusiness } from "./shell";
@@ -25,6 +25,7 @@ export default function DashboardHome() {
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [staff, setStaff] = useState<Staff[] | null>(null);
   const [services, setServices] = useState<Service[] | null>(null);
+  const [shiftCount, setShiftCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,11 +33,13 @@ export default function DashboardHome() {
       api<Place[]>(`/businesses/${business.id}/locations`),
       api<Staff[]>(`/businesses/${business.id}/staff`),
       api<Service[]>(`/businesses/${business.id}/services`),
+      api<Shift[]>(`/businesses/${business.id}/shifts?week=${mondayOf(isoDate(new Date()))}`),
     ])
-      .then(([p, s, sv]) => {
+      .then(([p, s, sv, sh]) => {
         setPlaces(p);
         setStaff(s);
         setServices(sv);
+        setShiftCount(sh.length);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "That didn't work."));
   }, [business.id]);
@@ -55,6 +58,7 @@ export default function DashboardHome() {
           placeCount={places?.length ?? 0}
           staffCount={staff?.length ?? 0}
           serviceCount={services?.filter((sv) => sv.active).length ?? 0}
+          shiftCount={shiftCount}
         />
         <div className="flex flex-col gap-6">
           <section aria-labelledby="places-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(160)}>
@@ -135,7 +139,7 @@ function ReviewTracker() {
   }[status];
   const body = {
     pending: "A person on the Spruce team is checking your details. This page updates when they're done.",
-    approved: "Next, add your services and prices. Opening hours and online booking come in the next release.",
+    approved: "Next, add your services and plan this week's shifts. Then take walk-ins on the calendar. Online booking comes in the next release.",
     rejected: "",
     suspended: "Your business is hidden from customers. Contact Spruce support to find out why.",
   }[status];
@@ -248,17 +252,19 @@ function Checklist({
   placeCount,
   staffCount,
   serviceCount,
+  shiftCount,
 }: {
   placeCount: number;
   staffCount: number;
   serviceCount: number;
+  shiftCount: number;
 }) {
-  const items: { label: string; done: boolean; href?: string; next?: boolean }[] = [
+  const items: { label: string; done: boolean; href?: string }[] = [
     { label: "Business details", done: true },
     { label: "First location", done: placeCount > 0 },
     { label: "First team member", done: staffCount > 0, href: "/dashboard/team" },
     { label: "Services and prices", done: serviceCount > 0, href: "/dashboard/services" },
-    { label: "Opening hours", done: false, next: true },
+    { label: "This week's shifts", done: shiftCount > 0, href: "/dashboard/team/shifts" },
   ];
   const doneCount = items.filter((i) => i.done).length;
   const share = doneCount / items.length;
@@ -298,7 +304,7 @@ function Checklist({
           </h2>
           <p className="text-sm text-muted">
             {doneCount} of {items.length} done.{" "}
-            {items.some((i) => !i.done && i.href) ? "Pick up where you left off below." : "The rest opens in the next release."}
+            {items.some((i) => !i.done && i.href) ? "Pick up where you left off below." : "You can take walk-ins on the calendar now."}
           </p>
         </div>
       </div>
@@ -319,7 +325,6 @@ function Checklist({
                 {item.label}
                 <span className="sr-only">{item.done ? ", done" : todo ? ", to do" : ", not yet available"}</span>
               </span>
-              {item.next && <span className="text-xs font-semibold text-muted">Next release</span>}
               {todo && (
                 <span className="flex items-center gap-1 text-xs font-bold tracking-[var(--tracking-label)] text-spruce uppercase">
                   Start
