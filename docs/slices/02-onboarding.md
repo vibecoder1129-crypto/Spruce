@@ -69,5 +69,7 @@ have no outbound network. Addresses are never logged.
   that client-sent coordinates are rejected.
 - Migration up, down, up in CI; GiST index exists on the geography column.
 - e2e: owner signs up, sets up two-step, completes onboarding, sees "In review"; a platform admin
-  approves it and the owner sees "Approved".
-- axe and Lighthouse on the onboarding and dashboard pages.
+  approves it and the owner sees "Approved". A second run rejects with a reason and the owner
+  resubmits.
+- axe on every onboarding step, the dashboard, the review queue and the reject dialog, on desktop
+  and phone. Lighthouse runs on signed-out pages only: it can't sign in, and these pages redirect.

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, nextStep, type Me } from "@/lib/api";
 
 type Setup = { secret: string; otpauth_uri: string };
 
@@ -74,7 +74,7 @@ export default function SecuritySetupPage() {
             Download
           </a>
         </div>
-        <Button size="lg" onClick={() => router.push("/account")}>
+        <Button size="lg" onClick={async () => router.push(nextStep(await api<Me>("/me")))}>
           I&apos;ve saved them
         </Button>
       </AuthShell>

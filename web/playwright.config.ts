@@ -25,6 +25,8 @@ export default defineConfig({
       env: {
         SPRUCE_ENV: "test",
         SPRUCE_EMAIL_BACKEND: "console",
+        // No outbound network in CI: addresses get fixed test coordinates.
+        SPRUCE_GEOCODER: "fake",
         SPRUCE_COOKIE_SECURE: "false",
         SPRUCE_DATA_KEY: "ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ=",
         SPRUCE_INDEX_KEY: "aWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWk=",

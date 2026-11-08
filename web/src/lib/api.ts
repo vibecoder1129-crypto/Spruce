@@ -18,6 +18,57 @@ export type Me = {
   language: string;
 };
 
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "suspended";
+
+export type Business = {
+  id: string;
+  name: string;
+  category: string;
+  approval_status: ApprovalStatus;
+  rejection_reason: string | null;
+  rejection_note: string | null;
+  submitted_at: string | null;
+};
+
+export type AdminBusiness = Business & { location_count: number; staff_count: number };
+
+export type Place = {
+  id: string;
+  name: string;
+  address_text: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+};
+
+export type Staff = { id: string; display_name: string; title: string; location_id: string; has_login: boolean };
+
+export type Country = { code: string; name: string; timezones: string[] };
+
+export const CATEGORIES: Record<string, string> = {
+  hair: "Hair salon",
+  barber: "Barber",
+  nails: "Nails",
+  brows_lashes: "Brows and lashes",
+  makeup: "Makeup",
+  skin: "Skin care",
+  massage: "Massage",
+  spa: "Spa",
+  wellness: "Wellness",
+};
+
+/** HLD 6: why an admin can turn a business down. */
+export const REJECT_REASONS: Record<string, string> = {
+  invalid_documents: "Documents aren't valid",
+  incomplete_profile: "Profile is incomplete",
+  duplicate_listing: "Duplicate listing",
+  category_not_supported: "Category isn't supported",
+  suspicious_info: "Information looks suspicious",
+  out_of_launch_area: "Outside the launch area",
+  policy_violation: "Breaks our policies",
+  other: "Other",
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -99,5 +150,7 @@ export async function api<T>(
 /** Where a signed-in person should land next, given their account state. */
 export function nextStep(me: Me): string {
   if (me.mfa_pending) return me.mfa_enabled ? "/login/verify" : "/account/security";
+  if (me.role === "owner") return "/dashboard"; // The dashboard sends new owners on to onboarding.
+  if (me.role === "admin") return "/admin/businesses";
   return "/account";
 }
