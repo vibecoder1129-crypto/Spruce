@@ -7,7 +7,7 @@
         "http://127.0.0.1:3200/design",
         "http://127.0.0.1:3200/login"
       ],
-      "numberOfRuns": 5,
+      "numberOfRuns": 9,
       "settings": {
         "chromeFlags": "--no-sandbox --headless=new"
       }
