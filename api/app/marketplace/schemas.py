@@ -59,6 +59,7 @@ class StoreService(BaseModel):
     duration_minutes: int
     price_minor: int
     currency: str
+    staff_ids: list[uuid.UUID]  # who does it, in team order
 
 
 class StoreMember(BaseModel):
