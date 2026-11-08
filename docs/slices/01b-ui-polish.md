@@ -12,6 +12,17 @@ A visual pass on the screens from slices 0 and 1, asked for by archit on 7 Nov. 
 - Home: header with Log in and List your business, hero with a "how booking works" card,
   three promises, a business section and a footer with Terms and Privacy.
 
+## Second pass (8 Nov): match the approved canvas
+
+- Home follows the canvas's landing board: floating nav bar, three-line display headline,
+  stats row, photo hero with a booking strip, two audience cards, the seven-step lifecycle,
+  four feature cards and a dark footer. Venues, ratings, pricing and the search bar stay out
+  until they are real.
+- Buttons move from pills to the canvas's 14px radius and bolder labels.
+- Photos: archit chose AI-generated images (8 Nov) until venues supply real ones. Two were
+  made with Figma AI and are self-hosted in `web/public/photos/`, served through `next/image`.
+  They show no real venue or person.
+
 ## Decisions
 
 - References came from 21st.dev (split sign-in, search hero). The patterns were rebuilt with
@@ -21,7 +32,6 @@ A visual pass on the screens from slices 0 and 1, asked for by archit on 7 Nov. 
   rating, so it is not a fake listing.
 - Entrance animation is off under `prefers-reduced-motion`, and e2e runs with reduced motion
   so axe checks contrast on settled pages.
-- The botanical sprig is generated SVG, a few hundred bytes, so pages stay image-free.
 
 ## Acceptance
 

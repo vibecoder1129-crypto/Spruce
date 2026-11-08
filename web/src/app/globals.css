@@ -20,11 +20,17 @@
   --color-danger: #a4271b;
   --color-danger-soft: #fbeceb;
   --color-warn-soft: #fbf3e2;
+  --color-line-warm: #e4e2d9;
+  --color-watermark: #f1efe8;
+  --color-footer-text: #c9d3cc;
+  --color-wordmark-light: #9cc5ae;
 
   --radius-control: 14px;
+  --radius-button: 14px;
   --radius-card: 26px;
 
-  --tracking-label: 0.08em;
+  --tracking-label: 0.12em;
+  --tracking-eyebrow: 0.18em;
   --tracking-wordmark: 0.06em;
 
   --color-forest: #0e2419; /* deep panel ground; white text is 16:1 on it */
@@ -33,7 +39,7 @@
 
   --shadow-card: 0 1px 2px rgb(21 32 26 / 0.04), 0 8px 24px -12px rgb(21 32 26 / 0.12);
   --shadow-float: 0 1px 2px rgb(21 32 26 / 0.05), 0 24px 48px -24px rgb(21 32 26 / 0.28);
-  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 1px 2px rgb(14 36 25 / 0.2);
+  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 10px 24px -8px rgb(27 67 50 / 0.35);
   --shadow-focus-ring: 0 0 0 4px var(--color-mint-strong);
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

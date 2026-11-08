@@ -1,8 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
-import { Botanical } from "@/components/botanical";
 import { Wordmark } from "@/components/ui/wordmark";
+import stillLife from "../../public/photos/still-life.jpg";
 
 const points = [
   { title: "Real open times", text: "See when a professional is actually free, then book in a few taps." },
@@ -51,11 +52,8 @@ export function AuthShell({
         aria-label="About booking"
         className="relative hidden flex-col justify-end overflow-hidden rounded-[32px] bg-forest p-12 text-white lg:flex"
       >
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(120%_80%_at_80%_0%,rgb(27_67_50/0.9),transparent_60%)]"
-        />
-        <Botanical className="absolute -top-6 right-6 h-[62%] text-sage opacity-50" />
+        <Image src={stillLife} alt="" fill sizes="45vw" placeholder="blur" className="object-cover" />
+        <div aria-hidden="true" className="absolute inset-0 bg-linear-to-t from-forest from-25% via-forest/75 via-45% to-forest/0 to-70%" />
         <div className="relative flex max-w-md flex-col gap-8">
           <p className="text-3xl leading-tight font-semibold text-balance">
             Beauty and wellness, booked in a minute.

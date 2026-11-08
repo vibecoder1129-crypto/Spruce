@@ -7,7 +7,7 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-full font-semibold uppercase " +
+  "inline-flex items-center justify-center gap-2.5 rounded-[var(--radius-button)] font-bold uppercase " +
   "tracking-[var(--tracking-label)] transition-[background-color,border-color,color,transform,box-shadow] " +
   "duration-200 ease-[var(--ease-out)] active:scale-[0.98] disabled:cursor-not-allowed " +
   "disabled:bg-none disabled:bg-line disabled:text-muted disabled:border-line disabled:shadow-none disabled:active:scale-100";
@@ -24,7 +24,7 @@ const variants: Record<Variant, string> = {
 // Both sizes keep a 44px minimum target (WCAG 2.5.5).
 const sizes: Record<Size, string> = {
   md: "min-h-11 px-5 text-xs",
-  lg: "min-h-14 px-7 text-sm",
+  lg: "min-h-[54px] px-6 text-sm",
 };
 
 export function buttonClasses(variant: Variant = "primary", size: Size = "md", extra?: string) {
