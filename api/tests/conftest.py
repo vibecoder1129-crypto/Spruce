@@ -23,6 +23,7 @@ from app.main import create_app
 from app.redis import get_redis
 
 TABLES = (
+    "bookings, time_off, weekly_shifts, "
     "audit_log, mfa_recovery_codes, one_time_tokens, sessions, staff_invites, permission_grants, "
     "staff_services, services, staff_profiles, locations, "
     "businesses, users"
