@@ -1,15 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 
 import { brand } from "@/brand";
+import { AudienceSwitch } from "@/components/home/audience-switch";
+import { BookingDemo } from "@/components/home/booking-demo";
+import { PreviewPlayground } from "@/components/home/preview-playground";
+import { Icon, type IconName } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Wordmark } from "@/components/ui/wordmark";
+import { CATEGORIES } from "@/lib/api";
 import treatment from "../../public/photos/treatment.jpg";
 
-// Holding page until the marketplace ships in slice 5, laid out after the approved canvas.
-// No venues, prices, ratings or reviews appear here until they are real. The booking card
-// shows how booking works, not a real venue.
+// Holding page until the marketplace ships in slice 5. No venues, prices, ratings or reviews
+// appear here until they are real: the booking walkthrough and the storefront card are
+// labelled examples, and the card only shows what the visitor types.
 
 const delay = (ms: number) => ({ "--delay": `${ms}ms` }) as CSSProperties;
 
@@ -18,81 +23,68 @@ const eyebrow = "text-xs font-bold tracking-[var(--tracking-eyebrow)] text-spruc
 const stats = [
   { value: "€0", label: "Booking fee" },
   { value: "10–60 km", label: "Radius search" },
-  { value: "100%", label: "Pay at venue" },
+  { value: "4 taps", label: "To book" },
 ];
 
 const lifecycle = [
-  ["Marketplace", "Discover"],
-  ["Availability", "Live slots"],
-  ["Booking", "Four taps"],
-  ["Calendar", "Staff day board"],
-  ["Completion", "Checkout"],
-  ["Sale", "Pay at venue"],
-  ["Analytics", "Reports"],
+  ["Discover", "Search near you"],
+  ["Book", "Real open slots"],
+  ["Visit", "Reminder the day before"],
+  ["Pay", "At the venue"],
+  ["Review", "Only after a visit"],
 ];
 
-const features = [
+const faqs = [
   {
-    kicker: "Discovery",
-    title: "Marketplace discovery",
-    body: "Search by location from 10 to 60 km, with real open slots and the distance on every venue.",
+    q: "Do I pay when I book?",
+    a: "No. Booking on Spruce is free and needs no card. You pay the venue when you visit, by cash or card.",
   },
   {
-    kicker: "Operations",
-    title: "Business management",
-    body: "A staff day board from 08:00 to 20:00, weekly shifts, walk-ins and checkout across every location.",
+    q: "Where is Spruce available?",
+    a: "Spruce opens in Riga first, then across the EU, Iceland, Liechtenstein, Norway and Switzerland.",
   },
   {
-    kicker: "Flexibility",
-    title: "Pay at the venue",
-    body: "No card details at booking. Clients pay by cash or card when they visit.",
+    q: "How do you check businesses?",
+    a: "A person on the Spruce team reviews every new business before customers can find it.",
   },
   {
-    kicker: "Trust",
-    title: "Safe by design",
-    body: "Personal details are encrypted, staff get only the access you give them, and businesses use two-step sign-in.",
+    q: "Can I trust the reviews?",
+    a: "Only customers with a completed booking can leave a review. Reviews imported from Google are labelled as such.",
+  },
+  {
+    q: "What happens to my personal data?",
+    a: "Your email and phone number are encrypted, we never sell your data, and you can download or delete it at any time.",
   },
 ];
-
-function Arrow() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function IconTile({ children }: { children: ReactNode }) {
-  return (
-    <span className="grid size-12 place-items-center rounded-[var(--radius-control)] bg-mint text-spruce">
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="size-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </svg>
-    </span>
-  );
-}
 
 export default function Home() {
   return (
     <>
-      <header className="mx-auto w-full max-w-[1280px] px-4 pt-4 sm:px-6">
-        <div className="flex items-center justify-between gap-3 rounded-[22px] border border-line bg-surface/90 py-2.5 pr-2.5 pl-5 shadow-[0_10px_30px_rgb(21_32_26/0.05)] sm:pl-6">
+      <header className="sticky top-0 z-30 mx-auto w-full max-w-[1280px] px-4 pt-4 sm:px-6">
+        <div className="flex items-center justify-between gap-3 rounded-[22px] border border-line bg-surface/85 py-2.5 pr-2.5 pl-5 shadow-[0_10px_30px_rgb(21_32_26/0.06)] backdrop-blur-md sm:pl-6">
           <Link href="/" className="rounded-md">
             <Wordmark className="text-2xl sm:text-[28px]" />
           </Link>
           <nav aria-label="Main" className="flex items-center gap-1">
-            <a href="#how" className="hidden min-h-11 items-center px-3.5 text-[13px] font-semibold tracking-[0.14em] text-muted uppercase hover:text-ink lg:inline-flex">
-              How it works
-            </a>
-            <a href="#business" className="hidden min-h-11 items-center px-3.5 text-[13px] font-semibold tracking-[0.14em] text-muted uppercase hover:text-ink lg:inline-flex">
-              For business
-            </a>
+            {[
+              ["#try", "Try booking"],
+              ["#business", "For business"],
+              ["#faq", "Questions"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="hidden min-h-11 items-center rounded-xl px-3.5 text-[13px] font-semibold tracking-[0.14em] text-muted uppercase transition-colors hover:bg-mint hover:text-ink lg:inline-flex"
+              >
+                {label}
+              </a>
+            ))}
             <Link href="/login" className="inline-flex min-h-11 items-center px-3.5 text-[13px] font-bold tracking-[0.14em] text-ink uppercase">
               Log in
             </Link>
             <ButtonLink href="/signup?as=business" className="max-sm:hidden">
               Business portal
-              <Arrow />
+              <Icon name="arrow" width={16} height={16} strokeWidth={2.2} />
             </ButtonLink>
           </nav>
         </div>
@@ -103,31 +95,25 @@ export default function Home() {
           <div className="min-w-0">
             <p className={`rise ${eyebrow}`}>The botanical marketplace · Opening in Riga</p>
             <h1
-              className="rise mt-5 text-[clamp(3rem,6.4vw,5.75rem)] leading-[0.95] font-extrabold tracking-[-0.04em]"
+              className="rise mt-5 text-[clamp(2.9rem,6.2vw,5.5rem)] leading-[0.98] font-extrabold tracking-[-0.04em]"
               style={delay(60)}
             >
-              Book your
+              Your next
               <br />
-              wellness
+              <span className="text-spruce">wellness</span>
               <br />
-              <span className="text-spruce">rituals.</span>
+              ritual, booked.
             </h1>
             <p className="rise mt-6 max-w-[520px] text-lg leading-relaxed text-pretty text-muted" style={delay(120)}>
-              Discover salons, spas and studios near you, book real open slots, and pay at the venue.
+              Find salons, spas and studios near you, pick a real open slot, and pay at the venue.
             </p>
             <div className="rise mt-8 flex flex-wrap gap-3" style={delay(180)}>
-              <ButtonLink href="/signup" size="lg">
-                Create an account
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="4" y="5" width="16" height="15" rx="2" />
-                  <path d="M8 3v4M16 3v4M4 10h16" />
-                </svg>
+              <ButtonLink href="#try" size="lg">
+                Try booking
+                <Icon name="arrow" width={18} height={18} />
               </ButtonLink>
               <ButtonLink href="/signup?as=business" variant="secondary" size="lg">
                 Grow your business
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                  <path d="M7 17L17 7M9 7h8v8" />
-                </svg>
               </ButtonLink>
             </div>
             <dl className="rise mt-9 flex flex-wrap gap-x-11 gap-y-5 border-t border-line-warm pt-6" style={delay(240)}>
@@ -140,7 +126,7 @@ export default function Home() {
             </dl>
           </div>
 
-          <div className="rise min-w-0" style={delay(200)}>
+          <div className="rise relative min-w-0" style={delay(200)}>
             <div className="relative h-[420px] overflow-hidden rounded-[32px] border-[6px] border-surface bg-forest shadow-[0_30px_60px_rgb(21_32_26/0.16)] sm:h-[560px]">
               <Image
                 src={treatment}
@@ -151,102 +137,136 @@ export default function Home() {
                 sizes="(min-width: 1024px) 560px, 100vw"
                 className="object-cover"
               />
-              <div className="absolute inset-x-4 bottom-4 flex flex-wrap items-end justify-between gap-3 rounded-[18px] bg-spruce/95 px-5 py-4 text-white sm:inset-x-5 sm:bottom-5">
-                <div>
-                  <p className="text-[11px] font-bold tracking-[0.16em] text-leaf uppercase">How booking works</p>
-                  <p className="mt-1 text-base font-bold sm:text-lg">Service, professional, time, done.</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-leaf">No card needed</p>
-                  <p className="mt-0.5 font-bold">Pay at the venue</p>
-                </div>
-              </div>
             </div>
+            {(
+              [
+                { icon: "clock", text: "Real open times", pos: "top-8 -left-3 sm:-left-6", d: 400 },
+                { icon: "check", text: "No card needed", pos: "top-1/2 -right-2 sm:-right-5", d: 520 },
+                { icon: "store", text: "Pay at the venue", pos: "bottom-8 left-6", d: 640 },
+              ] satisfies { icon: IconName; text: string; pos: string; d: number }[]
+            ).map((chip) => (
+              <span
+                key={chip.text}
+                className={`float absolute ${chip.pos} flex items-center gap-2 rounded-2xl bg-surface px-4 py-3 text-sm font-bold shadow-[var(--shadow-float)]`}
+                style={delay(chip.d)}
+              >
+                <span className="flex size-8 items-center justify-center rounded-xl bg-mint text-spruce">
+                  <Icon name={chip.icon} width={16} height={16} />
+                </span>
+                {chip.text}
+              </span>
+            ))}
           </div>
         </section>
 
-        <section aria-label="Who Spruce is for" className="mx-auto w-full max-w-[1280px] px-4 pt-20 sm:px-6">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-[28px] border border-line bg-surface p-8">
-              <IconTile>
-                <path d="M12 21c-4-2-7-5.5-7-10 3 0 5.5 1.5 7 4 1.5-2.5 4-4 7-4 0 4.5-3 8-7 10zM12 15V3" />
-              </IconTile>
-              <h2 className="mt-5 mb-2 text-2xl font-bold tracking-[-0.02em]">Find your next wellness escape</h2>
-              <p className="text-[15px] leading-relaxed text-muted">
-                Book salons and spa specialists near you, with real open times and reviews only from completed visits.
-              </p>
-              <ButtonLink href="/signup" className="mt-6">
-                Sign up as a client
-              </ButtonLink>
-            </div>
-            <div id="business" className="scroll-mt-6 rounded-[28px] border border-line bg-surface p-8">
-              <IconTile>
-                <path d="M4 10h16l-1-5H5zM5 10v10h14V10M9 20v-5h6v5" />
-              </IconTile>
-              <h2 className="mt-5 mb-2 text-2xl font-bold tracking-[-0.02em]">Grow your salon</h2>
-              <p className="text-[15px] leading-relaxed text-muted">
-                List your business, run staff rosters from 08:00 to 20:00, and give each employee only the access you choose.
-              </p>
-              <ButtonLink href="/signup?as=business" variant="secondary" className="mt-6">
-                Create a business account
-              </ButtonLink>
-            </div>
-          </div>
-        </section>
-
-        <section id="how" aria-labelledby="how-title" className="mx-auto w-full max-w-[1280px] scroll-mt-6 px-4 pt-24 text-center sm:px-6">
-          <p className="inline-block rounded-full bg-mint px-3 py-1.5 text-[11px] font-bold tracking-[var(--tracking-eyebrow)] text-spruce uppercase">
-            End to end
-          </p>
-          <h2 id="how-title" className="mt-4 mb-2.5 text-4xl font-bold tracking-[-0.03em] sm:text-[40px]">
-            The Spruce lifecycle
+        <section aria-labelledby="book-what" className="mx-auto w-full max-w-[1280px] px-4 pt-20 sm:px-6">
+          <h2 id="book-what" className="text-center text-sm font-semibold text-muted">
+            What you can book on Spruce
           </h2>
-          <p className="mx-auto max-w-[560px] leading-relaxed text-muted">
-            One loop connecting clients with wellness professionals and the back office that runs their day.
-          </p>
-          <ol className="mt-11 grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-4 lg:grid-cols-7">
-            {lifecycle.map(([label, sub], i) => {
-              const last = i === lifecycle.length - 1;
-              return (
-                <li key={label} className="flex flex-col items-center gap-2.5">
-                  <span
-                    className={
-                      "grid size-14 place-items-center rounded-2xl border text-[15px] font-bold " +
-                      (last ? "border-spruce bg-spruce text-white" : "border-mint-strong bg-surface text-spruce")
-                    }
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span className="text-[11px] font-bold tracking-[0.14em] uppercase">{label}</span>
-                  <span className="text-[13px] text-muted">{sub}</span>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-
-        <section aria-labelledby="features-title" className="mx-auto w-full max-w-[1280px] px-4 py-24 sm:px-6">
-          <div className="text-center">
-            <p className={eyebrow}>One platform</p>
-            <h2 id="features-title" className="mt-2.5 text-4xl font-bold tracking-[-0.03em] sm:text-[40px]">
-              Everything you need in one place
-            </h2>
-          </div>
-          <ul className="mt-9 grid gap-5 md:grid-cols-2">
-            {features.map((f, i) => (
-              <li key={f.title} className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface p-7">
-{/* Decorative numeral as generated content, so it is neither read out nor counted as text. */}
-                <span
-                  aria-hidden="true"
-                  data-n={String(i + 1).padStart(2, "0")}
-                  className="absolute top-2 right-5 text-7xl font-extrabold text-watermark before:content-[attr(data-n)]"
-                />
-                <p className="relative text-[11px] font-bold tracking-[0.16em] text-spruce uppercase">{f.kicker}</p>
-                <h3 className="relative mt-2 mb-2 text-[22px] font-bold tracking-[-0.02em]">{f.title}</h3>
-                <p className="relative text-[15px] leading-relaxed text-muted">{f.body}</p>
+          <ul className="mt-5 flex flex-wrap justify-center gap-2.5">
+            {Object.values(CATEGORIES).map((label) => (
+              <li key={label} className="rounded-full border border-line bg-surface px-5 py-2.5 text-[15px] font-semibold">
+                {label}
               </li>
             ))}
           </ul>
+        </section>
+
+        <section id="try" aria-labelledby="try-title" className="mx-auto grid w-full max-w-[1280px] scroll-mt-28 items-center gap-12 px-4 pt-24 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-5">
+            <p className={eyebrow}>Try it</p>
+            <h2 id="try-title" className="text-4xl font-bold tracking-[-0.03em] text-balance sm:text-5xl">
+              Booking takes four taps
+            </h2>
+            <p className="max-w-[460px] text-lg leading-relaxed text-pretty text-muted">
+              Choose a service, a professional and a time, then confirm. No account until the last step, and no card at all.
+            </p>
+            <ol className="mt-2 flex flex-col gap-3">
+              {["Service", "Professional", "Time", "Confirm"].map((s, i) => (
+                <li key={s} className="flex items-center gap-3 font-semibold">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-mint-strong text-sm text-spruce">{i + 1}</span>
+                  {s}
+                </li>
+              ))}
+            </ol>
+          </div>
+          <BookingDemo />
+        </section>
+
+        <section aria-labelledby="who-title" className="mx-auto w-full max-w-[1280px] px-4 pt-28 sm:px-6">
+          <h2 id="who-title" className="sr-only">
+            What Spruce does for you
+          </h2>
+          <AudienceSwitch />
+        </section>
+
+        <section id="business" aria-labelledby="biz-title" className="mx-auto w-full max-w-[1280px] scroll-mt-28 px-4 pt-28 sm:px-6">
+          <div className="relative overflow-hidden rounded-[36px] bg-forest px-6 py-12 text-white sm:px-12 sm:py-16">
+            <div aria-hidden="true" className="absolute -top-32 -left-24 size-96 rounded-full bg-spruce/70 blur-3xl" />
+            <div className="relative flex flex-col gap-10">
+              <div className="flex max-w-[640px] flex-col gap-3">
+                <p className="text-xs font-bold tracking-[var(--tracking-eyebrow)] text-leaf uppercase">For business</p>
+                <h2 id="biz-title" className="text-4xl font-bold tracking-[-0.03em] text-balance sm:text-5xl">
+                  See your business on Spruce
+                </h2>
+                <p className="text-lg text-pretty text-leaf">
+                  Type your name and pick what you offer. This is the card customers will tap to book you.
+                </p>
+              </div>
+              <PreviewPlayground />
+              <ButtonLink href="/signup?as=business" size="lg" variant="secondary" className="self-start">
+                Set up your business
+                <Icon name="arrow" width={18} height={18} />
+              </ButtonLink>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="loop-title" className="mx-auto w-full max-w-[1280px] px-4 pt-28 sm:px-6">
+          <div className="text-center">
+            <p className={eyebrow}>From search to review</p>
+            <h2 id="loop-title" className="mt-2.5 text-4xl font-bold tracking-[-0.03em] sm:text-[40px]">
+              One visit, start to finish
+            </h2>
+          </div>
+          <ol className="relative mt-12 grid gap-6 sm:grid-cols-5">
+            <span aria-hidden="true" className="absolute top-7 right-[10%] left-[10%] hidden h-px bg-line-strong sm:block" />
+            {lifecycle.map(([label, sub], i) => (
+              <li key={label} className="group relative flex items-center gap-4 sm:flex-col sm:text-center">
+                <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-mint-strong bg-surface text-[15px] font-bold text-spruce transition-[background-color,color,transform] duration-300 group-hover:-translate-y-1 group-hover:bg-spruce group-hover:text-white">
+                  {i + 1}
+                </span>
+                <span className="flex flex-col gap-1">
+                  <span className="font-bold">{label}</span>
+                  <span className="text-sm text-muted">{sub}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section id="faq" aria-labelledby="faq-title" className="mx-auto grid w-full max-w-[1280px] scroll-mt-28 gap-10 px-4 py-28 sm:px-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3">
+            <p className={eyebrow}>Questions</p>
+            <h2 id="faq-title" className="text-4xl font-bold tracking-[-0.03em]">
+              Good to know
+            </h2>
+          </div>
+          <div className="flex flex-col gap-3">
+            {faqs.map((f) => (
+              <details key={f.q} className="group rounded-[20px] border border-line bg-surface open:shadow-[var(--shadow-card)]">
+                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-6 py-4 text-lg font-bold [&::-webkit-details-marker]:hidden">
+                  {f.q}
+                  <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-mint text-spruce transition-transform duration-300 group-open:rotate-45">
+                    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                </summary>
+                <p className="px-6 pb-5 leading-relaxed text-pretty text-muted">{f.a}</p>
+              </details>
+            ))}
+          </div>
         </section>
       </main>
 

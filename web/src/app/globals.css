@@ -102,6 +102,19 @@ body {
   }
 }
 
+@keyframes float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Gentle bob for floating chips: two cycles, under 5 seconds (WCAG 2.2.2). */
+.float {
+  animation:
+    rise 0.6s var(--ease-out) both var(--delay, 0ms),
+    float 2.2s ease-in-out calc(var(--delay, 0ms) + 0.6s) 2;
+}
+
 /* A step or panel replacing another: key the element so it replays. */
 .slide-in {
   animation: slide-in 0.45s var(--ease-out) both;
@@ -120,7 +133,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rise,
   .slide-in,
-  .pop {
+  .pop,
+  .float {
     animation: none;
   }
 
