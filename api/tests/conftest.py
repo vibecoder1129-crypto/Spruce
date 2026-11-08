@@ -8,6 +8,7 @@ os.environ.update(
     SPRUCE_ENV="test",
     SPRUCE_EMAIL_BACKEND="memory",
     SPRUCE_COOKIE_SECURE="false",
+    SPRUCE_GEOCODER="fake",
     SPRUCE_DATA_KEY=base64.b64encode(b"d" * 32).decode(),
     SPRUCE_INDEX_KEY=base64.b64encode(b"i" * 32).decode(),
 )
@@ -21,7 +22,10 @@ from app.db import get_engine
 from app.main import create_app
 from app.redis import get_redis
 
-TABLES = "audit_log, mfa_recovery_codes, one_time_tokens, sessions, users"
+TABLES = (
+    "audit_log, mfa_recovery_codes, one_time_tokens, sessions, staff_profiles, locations, "
+    "businesses, users"
+)
 
 
 @pytest.fixture(autouse=True)

@@ -8,6 +8,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
+from app.business.router import admin_router as business_admin_router
+from app.business.router import router as business_router
 from app.config import get_settings
 from app.csrf import CSRFMiddleware
 from app.db import get_session
@@ -54,6 +56,8 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(business_router)
+    app.include_router(business_admin_router)
     return app
 
 

@@ -72,7 +72,7 @@ test("the password can be shown and hidden again", async ({ page }) => {
   await expect(password).toHaveAttribute("type", "password");
 });
 
-test("a business owner is taken through two-step setup before their account", async ({ page, context }) => {
+test("a business owner is taken through two-step setup before onboarding", async ({ page, context }) => {
   const problems = watchConsole(page);
   const email = uniqueEmail("owner");
 
@@ -96,9 +96,9 @@ test("a business owner is taken through two-step setup before their account", as
   await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem")).toHaveCount(10);
   await page.getByRole("button", { name: "I've saved them" }).click();
-  await expect(page).toHaveURL(/\/account$/);
+  await expect(page).toHaveURL(/\/onboarding$/);
 
-  // A new device must pass the second step before the account page.
+  // A new device must pass the second step before the business pages.
   await context.clearCookies();
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
@@ -108,7 +108,7 @@ test("a business owner is taken through two-step setup before their account", as
   await expectAccessible(page);
   await page.getByLabel("6-digit code").fill(totp.generate({ timestamp: Date.now() + 30_000 }));
   await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page).toHaveURL(/\/account$/);
+  await expect(page).toHaveURL(/\/onboarding$/);
   expect(problems).toEqual([]);
 });
 
