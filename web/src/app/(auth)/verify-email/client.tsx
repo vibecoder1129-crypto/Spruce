@@ -9,9 +9,7 @@ import { api } from "@/lib/api";
 
 export function VerifyEmailPage() {
   const token = useSearchParams().get("token") ?? "";
-  const [state, setState] = useState<"checking" | "done" | "failed">(
-    "checking",
-  );
+  const [state, setState] = useState<"checking" | "done" | "failed">("checking");
   const [message, setMessage] = useState("");
   const sent = useRef(false);
 
@@ -26,21 +24,14 @@ export function VerifyEmailPage() {
       });
   }, [token]);
 
-  const title = {
-    checking: "Confirming your email…",
-    done: "Email confirmed",
-    failed: "We couldn't confirm your email",
-  }[state];
+  const title = { checking: "Confirming your email…", done: "Email confirmed", failed: "We couldn't confirm your email" }[state];
   return (
     <AuthShell title={title} intro={state === "failed" ? message : undefined}>
       <p aria-live="polite" className="sr-only">
         {title}
       </p>
       {state !== "checking" && (
-        <Link
-          href="/account"
-          className="font-semibold text-spruce underline underline-offset-4"
-        >
+        <Link href="/account" className="font-semibold text-spruce underline underline-offset-4">
           Go to your account
         </Link>
       )}

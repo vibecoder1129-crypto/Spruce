@@ -12,11 +12,7 @@ const tones: Record<Tone, string> = {
 };
 
 /** Small status label. Colour is never the only signal: the text always says the status. */
-export function Badge({
-  tone = "neutral",
-  className,
-  ...rest
-}: ComponentProps<"span"> & { tone?: Tone }) {
+export function Badge({ tone = "neutral", className, ...rest }: ComponentProps<"span"> & { tone?: Tone }) {
   return (
     <span
       className={cn(

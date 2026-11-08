@@ -30,10 +30,7 @@ export type Business = {
   submitted_at: string | null;
 };
 
-export type AdminBusiness = Business & {
-  location_count: number;
-  staff_count: number;
-};
+export type AdminBusiness = Business & { location_count: number; staff_count: number };
 
 export type Place = {
   id: string;
@@ -86,14 +83,8 @@ export type MyStaff = {
 
 /** HLD 9: what each grantable permission lets an employee do, in the owner's words. */
 export const FLAGS: Record<Flag, { label: string; meaning: string }> = {
-  "calendar.view": {
-    label: "See the calendar",
-    meaning: "Their own column on the day board.",
-  },
-  "calendar.team": {
-    label: "See the whole team's calendar",
-    meaning: "Everyone's columns, not just their own.",
-  },
+  "calendar.view": { label: "See the calendar", meaning: "Their own column on the day board." },
+  "calendar.team": { label: "See the whole team's calendar", meaning: "Everyone's columns, not just their own." },
   "appointments.own": {
     label: "Manage their own appointments",
     meaning: "Book, move and cancel on their own column, including walk-ins.",
@@ -102,14 +93,8 @@ export const FLAGS: Record<Flag, { label: string; meaning: string }> = {
     label: "Check out their own visits",
     meaning: "Mark visits done or no-show and record cash or card.",
   },
-  "reports.own": {
-    label: "See their own numbers",
-    meaning: "Reports for their own work only.",
-  },
-  "chat.personal": {
-    label: "Reply to their own messages",
-    meaning: "Answer customers who message them directly.",
-  },
+  "reports.own": { label: "See their own numbers", meaning: "Reports for their own work only." },
+  "chat.personal": { label: "Reply to their own messages", meaning: "Answer customers who message them directly." },
 };
 
 /** HLD 9: rights that stay with the owner, whatever the employee's title. */
@@ -122,9 +107,7 @@ export const OWNER_ONLY = [
 
 /** A price in minor units, shown the way people in Europe read it. */
 export function formatPrice(minor: number, currency: string): string {
-  return new Intl.NumberFormat("en-IE", { style: "currency", currency }).format(
-    minor / 100,
-  );
+  return new Intl.NumberFormat("en-IE", { style: "currency", currency }).format(minor / 100);
 }
 
 export function formatDuration(minutes: number): string {
@@ -133,10 +116,7 @@ export function formatDuration(minutes: number): string {
   return [h && `${h} h`, m && `${m} min`].filter(Boolean).join(" ");
 }
 
-export type AdminBusinessDetail = Business & {
-  locations: Place[];
-  staff: Staff[];
-};
+export type AdminBusinessDetail = Business & { locations: Place[]; staff: Staff[] };
 
 export type Country = { code: string; name: string; timezones: string[] };
 
@@ -213,9 +193,7 @@ function messageFrom(body: unknown, status: number): string {
     const first = detail[0] as { msg?: string } | undefined;
     if (first?.msg) return first.msg.replace(/^Value error, /, "");
   }
-  return status >= 500
-    ? "Something went wrong on our side. Please try again."
-    : "That didn't work.";
+  return status >= 500 ? "Something went wrong on our side. Please try again." : "That didn't work.";
 }
 
 export async function api<T>(
@@ -246,8 +224,7 @@ export async function api<T>(
 
 /** Where a signed-in person should land next, given their account state. */
 export function nextStep(me: Me): string {
-  if (me.mfa_pending)
-    return me.mfa_enabled ? "/login/verify" : "/account/security";
+  if (me.mfa_pending) return me.mfa_enabled ? "/login/verify" : "/account/security";
   if (me.role === "owner") return "/dashboard"; // The dashboard sends new owners on to onboarding.
   if (me.role === "admin") return "/admin/businesses";
   if (me.role === "staff") return "/staff";

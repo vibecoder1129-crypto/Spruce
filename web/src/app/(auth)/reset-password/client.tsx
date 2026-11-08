@@ -22,10 +22,7 @@ export function ResetPasswordPage() {
     try {
       await api("/auth/password-reset/confirm", {
         method: "POST",
-        body: {
-          token,
-          password: new FormData(event.currentTarget).get("password"),
-        },
+        body: { token, password: new FormData(event.currentTarget).get("password") },
       });
       setDone(true);
     } catch (e) {
@@ -37,14 +34,8 @@ export function ResetPasswordPage() {
 
   if (done) {
     return (
-      <AuthShell
-        title="Password changed"
-        intro="You've been logged out everywhere. Log in with your new password."
-      >
-        <Link
-          href="/login"
-          className="font-semibold text-spruce underline underline-offset-4"
-        >
+      <AuthShell title="Password changed" intro="You've been logged out everywhere. Log in with your new password.">
+        <Link href="/login" className="font-semibold text-spruce underline underline-offset-4">
           Log in
         </Link>
       </AuthShell>

@@ -1,13 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  createOwner,
-  enrolTwoStep,
-  expectAccessible,
-  inviteToken,
-  PASSWORD,
-  uniqueEmail,
-} from "./helpers";
+import { createOwner, enrolTwoStep, expectAccessible, inviteToken, PASSWORD, uniqueEmail } from "./helpers";
 
 /** A new owner with a submitted business, one location and one team member (Marta). */
 async function ownerWithBusiness(page: Page) {
@@ -18,9 +11,7 @@ async function ownerWithBusiness(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
   await enrolTwoStep(page);
-  await page
-    .getByLabel("Business name")
-    .fill(`Linden Studio ${Math.random().toString(36).slice(2, 7)}`);
+  await page.getByLabel("Business name").fill(`Linden Studio ${Math.random().toString(36).slice(2, 7)}`);
   await page.locator("label", { hasText: "Hair salon" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Venue name").fill("Old Town");
@@ -33,17 +24,11 @@ async function ownerWithBusiness(page: Page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Submit for review" }).click();
   await page.getByRole("link", { name: "Go to your dashboard" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Your business is in review" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your business is in review" })).toBeVisible();
 }
 
 async function addService(page: Page, name: string, price: string) {
-  await page
-    .getByRole("main")
-    .getByRole("button", { name: "Add service" })
-    .first()
-    .click();
+  await page.getByRole("main").getByRole("button", { name: "Add service" }).first().click();
   const panel = page.getByRole("region", { name: "New service" });
   await panel.getByLabel("Name").fill(name);
   await panel.getByLabel("Price").fill(price);
@@ -59,9 +44,7 @@ test("an owner sets up services and a team member, who signs in until a permissi
 
   // Services
   await page.goto("/dashboard/services");
-  await expect(
-    page.getByRole("heading", { name: "Add your first service" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add your first service" })).toBeVisible();
   await expectAccessible(page);
   await addService(page, "Haircut", "35");
   await addService(page, "Colour", "79,50");
@@ -102,24 +85,16 @@ test("an owner sets up services and a team member, who signs in until a permissi
   const staffContext = await browser.newContext({ reducedMotion: "reduce" });
   const staff = await staffContext.newPage();
   await staff.goto(`/invite/${inviteToken(staffEmail)}`);
-  await expect(
-    staff.getByRole("heading", { name: /^Join Linden Studio/ }),
-  ).toBeVisible();
+  await expect(staff.getByRole("heading", { name: /^Join Linden Studio/ })).toBeVisible();
   await expectAccessible(staff);
   await staff.getByLabel("Password").fill(PASSWORD);
   await staff.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await staff.getByRole("button", { name: "Join the team" }).click();
   await expect(staff).toHaveURL(/\/staff$/);
   await expect(staff.getByRole("heading", { name: "Hi, Marta" })).toBeVisible();
-  await expect(
-    staff.getByRole("region", { name: "Your services" }),
-  ).toContainText("Haircut");
-  await expect(
-    staff.getByRole("region", { name: "Your services" }),
-  ).not.toContainText("Colour");
-  await expect(
-    staff.getByRole("region", { name: "What you can do" }),
-  ).toContainText("See the calendar");
+  await expect(staff.getByRole("region", { name: "Your services" })).toContainText("Haircut");
+  await expect(staff.getByRole("region", { name: "Your services" })).not.toContainText("Colour");
+  await expect(staff.getByRole("region", { name: "What you can do" })).toContainText("See the calendar");
   await expectAccessible(staff);
 
   // The owner turns the permission off: Marta is signed out on her next request.

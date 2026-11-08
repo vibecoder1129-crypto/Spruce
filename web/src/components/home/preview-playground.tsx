@@ -15,10 +15,7 @@ export function PreviewPlayground() {
     <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor="try-name"
-            className="text-sm font-semibold text-white"
-          >
+          <label htmlFor="try-name" className="text-sm font-semibold text-white">
             Your business name
           </label>
           <input
@@ -31,10 +28,7 @@ export function PreviewPlayground() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor="try-city"
-            className="text-sm font-semibold text-white"
-          >
+          <label htmlFor="try-city" className="text-sm font-semibold text-white">
             City
           </label>
           <input
@@ -47,9 +41,7 @@ export function PreviewPlayground() {
           />
         </div>
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-sm font-semibold text-white">
-            What you offer
-          </legend>
+          <legend className="mb-1.5 text-sm font-semibold text-white">What you offer</legend>
           <div className="flex flex-wrap gap-2">
             {Object.entries(CATEGORIES).map(([value, label]) => (
               <button
@@ -59,9 +51,7 @@ export function PreviewPlayground() {
                 onClick={() => setCategory(value)}
                 className={cn(
                   "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors duration-200",
-                  category === value
-                    ? "border-leaf bg-leaf text-forest"
-                    : "border-white/25 text-white hover:bg-white/10",
+                  category === value ? "border-leaf bg-leaf text-forest" : "border-white/25 text-white hover:bg-white/10",
                 )}
               >
                 {label}
@@ -69,13 +59,9 @@ export function PreviewPlayground() {
             ))}
           </div>
         </fieldset>
-        <p className="text-sm text-leaf">
-          Nothing you type here is saved or sent anywhere.
-        </p>
+        <p className="text-sm text-leaf">Nothing you type here is saved or sent anywhere.</p>
       </div>
-      <StorefrontPreview
-        data={{ name, category, venue: "", address: city, team: [] }}
-      />
+      <StorefrontPreview data={{ name, category, venue: "", address: city, team: [] }} />
     </div>
   );
 }

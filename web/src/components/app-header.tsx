@@ -9,15 +9,7 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { logOut } from "@/lib/use-me";
 
 /** The top bar of signed-in work areas: wordmark, an optional label, and log out. */
-export function AppHeader({
-  label,
-  href = "/",
-  children,
-}: {
-  label?: string;
-  href?: string;
-  children?: ReactNode;
-}) {
+export function AppHeader({ label, href = "/", children }: { label?: string; href?: string; children?: ReactNode }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   return (

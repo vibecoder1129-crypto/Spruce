@@ -38,10 +38,7 @@ export function LoginForm() {
       footer={
         <>
           New here?{" "}
-          <Link
-            href="/signup"
-            className="font-semibold text-spruce underline underline-offset-4"
-          >
+          <Link href="/signup" className="font-semibold text-spruce underline underline-offset-4">
             Create an account
           </Link>
         </>
@@ -49,27 +46,12 @@ export function LoginForm() {
     >
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
-        <Field
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          autoFocus
-        />
-        <PasswordField
-          label="Password"
-          name="password"
-          autoComplete="current-password"
-          required
-        />
+        <Field label="Email" name="email" type="email" autoComplete="email" required autoFocus />
+        <PasswordField label="Password" name="password" autoComplete="current-password" required />
         <Button type="submit" size="lg" loading={busy}>
           Log in
         </Button>
-        <Link
-          href="/forgot-password"
-          className="self-center text-sm font-semibold text-spruce underline underline-offset-4"
-        >
+        <Link href="/forgot-password" className="self-center text-sm font-semibold text-spruce underline underline-offset-4">
           Forgot your password?
         </Link>
       </form>

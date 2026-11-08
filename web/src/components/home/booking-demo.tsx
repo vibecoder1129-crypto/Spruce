@@ -18,9 +18,7 @@ const STEPS = ["Service", "Professional", "Time", "Confirm"] as const;
 
 export function BookingDemo() {
   const [step, setStep] = useState(0);
-  const [service, setService] = useState<(typeof SERVICES)[number] | null>(
-    null,
-  );
+  const [service, setService] = useState<(typeof SERVICES)[number] | null>(null);
   const [pro, setPro] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -36,51 +34,25 @@ export function BookingDemo() {
   const option = (selected: boolean) =>
     cn(
       "flex min-h-12 w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 text-left text-sm font-semibold transition-[background-color,border-color,transform] duration-200 active:scale-[0.99]",
-      selected
-        ? "border-spruce bg-mint text-spruce"
-        : "border-line-strong bg-surface hover:border-muted hover:bg-ground",
+      selected ? "border-spruce bg-mint text-spruce" : "border-line-strong bg-surface hover:border-muted hover:bg-ground",
     );
 
   return (
     <div className="flex flex-col gap-5 rounded-[28px] border border-line bg-surface p-5 shadow-[var(--shadow-float)] sm:p-7">
       <div className="flex items-center justify-between gap-3">
-        <span className="rounded-full bg-mint-strong px-3 py-1 text-xs font-bold text-spruce">
-          Example booking
-        </span>
-        <button
-          type="button"
-          onClick={reset}
-          className="min-h-11 rounded-[var(--radius-control)] px-3 text-sm font-semibold text-spruce hover:bg-mint"
-        >
+        <span className="rounded-full bg-mint-strong px-3 py-1 text-xs font-bold text-spruce">Example booking</span>
+        <button type="button" onClick={reset} className="min-h-11 rounded-[var(--radius-control)] px-3 text-sm font-semibold text-spruce hover:bg-mint">
           Start again
         </button>
       </div>
       <ol aria-label="Booking steps" className="grid grid-cols-4 gap-2">
         {STEPS.map((label, i) => (
-          <li
-            key={label}
-            aria-current={i === step && !done ? "step" : undefined}
-            className="flex flex-col gap-1.5"
-          >
+          <li key={label} aria-current={i === step && !done ? "step" : undefined} className="flex flex-col gap-1.5">
             <span
               aria-hidden="true"
-              className={cn(
-                "h-1.5 rounded-full transition-colors duration-300",
-                i < step || done
-                  ? "bg-spruce"
-                  : i === step
-                    ? "bg-spruce/50"
-                    : "bg-line-strong",
-              )}
+              className={cn("h-1.5 rounded-full transition-colors duration-300", i < step || done ? "bg-spruce" : i === step ? "bg-spruce/50" : "bg-line-strong")}
             />
-            <span
-              className={cn(
-                "text-xs font-semibold",
-                i === step && !done ? "text-ink" : "text-muted",
-              )}
-            >
-              {label}
-            </span>
+            <span className={cn("text-xs font-semibold", i === step && !done ? "text-ink" : "text-muted")}>{label}</span>
           </li>
         ))}
       </ol>
@@ -91,19 +63,14 @@ export function BookingDemo() {
             <span className="pop flex size-14 items-center justify-center rounded-full bg-spruce text-white">
               <Icon name="check" width={28} height={28} strokeWidth={2.4} />
             </span>
-            <p className="text-2xl font-bold tracking-tight">
-              That&apos;s it. You&apos;re booked.
-            </p>
+            <p className="text-2xl font-bold tracking-tight">That&apos;s it. You&apos;re booked.</p>
             <p className="text-pretty text-muted">
-              In the real app you&apos;d get a confirmation and a reminder the
-              day before. You pay at the venue, by card or cash.
+              In the real app you&apos;d get a confirmation and a reminder the day before. You pay at the venue, by card or cash.
             </p>
           </div>
         ) : step === 0 ? (
           <fieldset key="s0" className="slide-in flex flex-col gap-2">
-            <legend className="mb-3 text-lg font-bold">
-              What would you like?
-            </legend>
+            <legend className="mb-3 text-lg font-bold">What would you like?</legend>
             {SERVICES.map((s) => (
               <button
                 key={s.id}
@@ -135,30 +102,20 @@ export function BookingDemo() {
                 }}
               >
                 {p}
-                <Icon
-                  name="arrow"
-                  width={16}
-                  height={16}
-                  className="text-muted"
-                />
+                <Icon name="arrow" width={16} height={16} className="text-muted" />
               </button>
             ))}
           </fieldset>
         ) : step === 2 ? (
           <fieldset key="s2" className="slide-in flex flex-col gap-2">
-            <legend className="mb-3 text-lg font-bold">
-              Pick a time on Saturday
-            </legend>
+            <legend className="mb-3 text-lg font-bold">Pick a time on Saturday</legend>
             <div className="grid grid-cols-3 gap-2">
               {TIMES.map((t) => (
                 <button
                   key={t}
                   type="button"
                   aria-pressed={time === t}
-                  className={cn(
-                    option(time === t),
-                    "justify-center tabular-nums",
-                  )}
+                  className={cn(option(time === t), "justify-center tabular-nums")}
                   onClick={() => {
                     setTime(t);
                     setStep(3);
@@ -179,10 +136,7 @@ export function BookingDemo() {
                 ["When", `Saturday at ${time}`],
                 ["Payment", "At the venue"],
               ].map(([k, v]) => (
-                <div
-                  key={k}
-                  className="flex justify-between gap-4 px-4 py-3 text-sm"
-                >
+                <div key={k} className="flex justify-between gap-4 px-4 py-3 text-sm">
                   <dt className="text-muted">{k}</dt>
                   <dd className="text-right font-semibold">{v}</dd>
                 </div>
@@ -196,11 +150,7 @@ export function BookingDemo() {
               >
                 Confirm booking
               </button>
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="min-h-12 rounded-[var(--radius-button)] px-4 text-sm font-semibold text-spruce hover:bg-mint"
-              >
+              <button type="button" onClick={() => setStep(2)} className="min-h-12 rounded-[var(--radius-button)] px-4 text-sm font-semibold text-spruce hover:bg-mint">
                 Change time
               </button>
             </div>

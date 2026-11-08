@@ -9,10 +9,6 @@ async def main():
     keys = [k async for k in r.scan_iter('rl:*')]
     if keys: await r.delete(*keys)
 asyncio.run(main())"`,
-    {
-      cwd: "../api",
-      stdio: "inherit",
-      env: { ...process.env, SPRUCE_DATA_KEY: "x", SPRUCE_INDEX_KEY: "x" },
-    },
+    { cwd: "../api", stdio: "inherit", env: { ...process.env, SPRUCE_DATA_KEY: "x", SPRUCE_INDEX_KEY: "x" } },
   );
 }

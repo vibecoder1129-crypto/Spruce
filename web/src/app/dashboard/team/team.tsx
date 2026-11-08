@@ -43,10 +43,7 @@ export function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const fetchStaff = useCallback(
-    () => api<Staff[]>(`/businesses/${business.id}/staff`),
-    [business.id],
-  );
+  const fetchStaff = useCallback(() => api<Staff[]>(`/businesses/${business.id}/staff`), [business.id]);
 
   useEffect(() => {
     Promise.all([
@@ -76,9 +73,7 @@ export function TeamPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Team</h1>
-          <p className="mt-1 text-muted">
-            Who works with you, what they do and what they may see.
-          </p>
+          <p className="mt-1 text-muted">Who works with you, what they do and what they may see.</p>
         </div>
         <Button onClick={() => setSelected("new")}>
           <Icon name="team" /> Add team member
@@ -104,9 +99,7 @@ export function TeamPage() {
                 onClick={() => setSelected(s.id)}
                 className={cn(
                   "flex w-full items-center gap-4 rounded-[var(--radius-card)] border bg-surface p-4 text-left transition-[border-color,box-shadow] duration-200 hover:border-spruce/40",
-                  selected === s.id
-                    ? "border-spruce shadow-[var(--shadow-focus-ring)]"
-                    : "border-line",
+                  selected === s.id ? "border-spruce shadow-[var(--shadow-focus-ring)]" : "border-line",
                   !s.active && "opacity-70",
                 )}
               >
@@ -116,9 +109,7 @@ export function TeamPage() {
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate font-bold">{s.display_name}</span>
                   <span className="truncate text-sm text-muted">
-                    {[s.title, placeName(s.location_id)]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[s.title, placeName(s.location_id)].filter(Boolean).join(" · ")}
                   </span>
                   <span className="text-xs font-semibold text-muted">
                     {!s.active
@@ -153,15 +144,7 @@ export function TeamPage() {
   );
 }
 
-function Panel({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <section
       aria-labelledby="member-panel-title"
@@ -226,20 +209,8 @@ function NewMember({
     <Panel title="New team member" onClose={onClose}>
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
         <FormError message={error} />
-        <Field
-          label="Name"
-          name="name"
-          maxLength={80}
-          hint="As customers will see it."
-          required
-          autoFocus
-        />
-        <Field
-          label="Title"
-          name="title"
-          maxLength={80}
-          placeholder="Stylist"
-        />
+        <Field label="Name" name="name" maxLength={80} hint="As customers will see it." required autoFocus />
+        <Field label="Title" name="title" maxLength={80} placeholder="Stylist" />
         <Select label="Location" name="location" required>
           {places.map((p) => (
             <option key={p.id} value={p.id}>
@@ -290,63 +261,33 @@ function MemberPanel({
             onKeyDown={(e) => {
               if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
               const i = TABS.findIndex((x) => x.id === tab);
-              const next =
-                TABS[
-                  (i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) %
-                    TABS.length
-                ];
+              const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
               setTab(next.id);
               document.getElementById(`tab-${next.id}`)?.focus();
             }}
             className={cn(
               "min-h-11 flex-1 rounded-[calc(var(--radius-control)-4px)] px-2 text-sm font-semibold transition-colors duration-200",
-              tab === t.id
-                ? "bg-surface text-ink shadow-sm"
-                : "text-muted hover:text-ink",
+              tab === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
             )}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <div
-        role="tabpanel"
-        id={`tabpanel-${tab}`}
-        aria-labelledby={`tab-${tab}`}
-        className="slide-in"
-        key={tab}
-      >
-        {tab === "details" && (
-          <Details person={person} places={places} onChanged={onChanged} />
-        )}
-        {tab === "services" && (
-          <Services person={person} services={services} onChanged={onChanged} />
-        )}
-        {tab === "permissions" && (
-          <Permissions person={person} onChanged={onChanged} />
-        )}
+      <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`} className="slide-in" key={tab}>
+        {tab === "details" && <Details person={person} places={places} onChanged={onChanged} />}
+        {tab === "services" && <Services person={person} services={services} onChanged={onChanged} />}
+        {tab === "permissions" && <Permissions person={person} onChanged={onChanged} />}
       </div>
     </Panel>
   );
 }
 
-function Details({
-  person,
-  places,
-  onChanged,
-}: {
-  person: Staff;
-  places: Place[];
-  onChanged: (t: string) => void;
-}) {
+function Details({ person, places, onChanged }: { person: Staff; places: Place[]; onChanged: (t: string) => void }) {
   const [busy, setBusy] = useState<"save" | "invite" | "archive" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(
-    kind: "save" | "invite" | "archive",
-    work: () => Promise<unknown>,
-    text: string,
-  ) {
+  async function run(kind: "save" | "invite" | "archive", work: () => Promise<unknown>, text: string) {
     setBusy(kind);
     setError(null);
     try {
@@ -368,9 +309,7 @@ function Details({
           className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-mint p-4"
           onSubmit={(event) => {
             event.preventDefault();
-            const email = String(
-              new FormData(event.currentTarget).get("email"),
-            );
+            const email = String(new FormData(event.currentTarget).get("email"));
             void run(
               "invite",
               () =>
@@ -416,25 +355,9 @@ function Details({
           );
         }}
       >
-        <Field
-          label="Name"
-          name="name"
-          defaultValue={person.display_name}
-          maxLength={80}
-          required
-        />
-        <Field
-          label="Title"
-          name="title"
-          defaultValue={person.title}
-          maxLength={80}
-        />
-        <Select
-          label="Location"
-          name="location"
-          defaultValue={person.location_id}
-          required
-        >
+        <Field label="Name" name="name" defaultValue={person.display_name} maxLength={80} required />
+        <Field label="Title" name="title" defaultValue={person.title} maxLength={80} />
+        <Select label="Location" name="location" defaultValue={person.location_id} required>
           {places.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -485,10 +408,7 @@ function Services({
     return (
       <p className="text-muted">
         Add services first, then choose who does each one.{" "}
-        <a
-          href="/dashboard/services"
-          className="font-semibold text-spruce underline underline-offset-4"
-        >
+        <a href="/dashboard/services" className="font-semibold text-spruce underline underline-offset-4">
           Go to Services
         </a>
       </p>
@@ -518,9 +438,7 @@ function Services({
     >
       <FormError message={error} />
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm text-muted">
-          Customers can only book {person.display_name} for these.
-        </legend>
+        <legend className="mb-2 text-sm text-muted">Customers can only book {person.display_name} for these.</legend>
         {services.map((s) => (
           <label
             key={s.id}
@@ -538,9 +456,7 @@ function Services({
               }}
             />
             <span className="flex-1 font-semibold">{s.name}</span>
-            <span className="text-sm text-muted">
-              {formatDuration(s.duration_minutes)}
-            </span>
+            <span className="text-sm text-muted">{formatDuration(s.duration_minutes)}</span>
           </label>
         ))}
       </fieldset>
@@ -551,13 +467,7 @@ function Services({
   );
 }
 
-function Permissions({
-  person,
-  onChanged,
-}: {
-  person: Staff;
-  onChanged: (t: string) => void;
-}) {
+function Permissions({ person, onChanged }: { person: Staff; onChanged: (t: string) => void }) {
   const [flags, setFlags] = useState<Permission[] | null>(null);
   const [confirming, setConfirming] = useState<Flag | null>(null);
   const [busy, setBusy] = useState<Flag | null>(null);
@@ -577,10 +487,7 @@ function Permissions({
         method: "PUT",
         body: { granted },
       });
-      setFlags(
-        (list) =>
-          list?.map((p) => (p.flag === flag ? { ...p, granted } : p)) ?? null,
-      );
+      setFlags((list) => list?.map((p) => (p.flag === flag ? { ...p, granted } : p)) ?? null);
       setConfirming(null);
       onChanged(
         granted
@@ -596,28 +503,20 @@ function Permissions({
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-sm text-muted">
-        Everything starts off. Turn on only what {person.display_name} needs.
-      </p>
+      <p className="text-sm text-muted">Everything starts off. Turn on only what {person.display_name} needs.</p>
       <FormError message={error} />
       {flags === null && !error && <p className="text-muted">Loading…</p>}
       <ul className="flex flex-col gap-2">
         {flags?.map((p) => {
           const labelId = `flag-${p.flag}`;
           return (
-            <li
-              key={p.flag}
-              className="rounded-[var(--radius-control)] border border-line p-4"
-            >
+            <li key={p.flag} className="rounded-[var(--radius-control)] border border-line p-4">
               <div className="flex items-start gap-4">
                 <span className="flex flex-1 flex-col gap-0.5">
                   <span id={labelId} className="font-semibold">
                     {FLAGS[p.flag].label}
                   </span>
-                  <span
-                    id={`${labelId}-meaning`}
-                    className="text-sm text-muted"
-                  >
+                  <span id={`${labelId}-meaning`} className="text-sm text-muted">
                     {FLAGS[p.flag].meaning}
                   </span>
                 </span>
@@ -628,9 +527,7 @@ function Permissions({
                   aria-labelledby={labelId}
                   aria-describedby={`${labelId}-meaning`}
                   disabled={busy !== null}
-                  onClick={() =>
-                    p.granted ? setConfirming(p.flag) : void set(p.flag, true)
-                  }
+                  onClick={() => (p.granted ? setConfirming(p.flag) : void set(p.flag, true))}
                   className="flex min-h-11 min-w-14 items-center justify-center rounded-full"
                 >
                   <span
@@ -656,15 +553,10 @@ function Permissions({
                   className="pop mt-3 flex flex-col gap-3 rounded-[var(--radius-control)] bg-ground p-3"
                 >
                   <p id={`${labelId}-confirm`} className="text-sm">
-                    Turning this off signs {person.display_name} out of Spruce
-                    right away.
+                    Turning this off signs {person.display_name} out of Spruce right away.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="danger"
-                      loading={busy === p.flag}
-                      onClick={() => void set(p.flag, false)}
-                    >
+                    <Button variant="danger" loading={busy === p.flag} onClick={() => void set(p.flag, false)}>
                       Turn off
                     </Button>
                     <Button variant="ghost" onClick={() => setConfirming(null)}>
@@ -681,9 +573,7 @@ function Permissions({
         <h3 className="flex items-center gap-2 text-sm font-bold">
           <Icon name="shield" /> Only you
         </h3>
-        <p className="mt-1 text-sm text-muted">
-          These stay with you, whatever someone&apos;s title.
-        </p>
+        <p className="mt-1 text-sm text-muted">These stay with you, whatever someone&apos;s title.</p>
         <ul className="mt-2 list-disc pl-5 text-sm text-muted">
           {OWNER_ONLY.map((t) => (
             <li key={t}>{t}</li>

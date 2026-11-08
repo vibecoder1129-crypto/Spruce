@@ -56,10 +56,7 @@ export function InvitePage() {
       >
         <p className="text-muted">
           Ask your manager to send a new invite, or{" "}
-          <Link
-            href="/login"
-            className="font-semibold text-spruce underline underline-offset-4"
-          >
+          <Link href="/login" className="font-semibold text-spruce underline underline-offset-4">
             log in
           </Link>{" "}
           if you already set a password.
@@ -95,25 +92,14 @@ export function InvitePage() {
           autoFocus
         />
         <label className="flex min-h-11 items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            name="terms"
-            required
-            className="mt-0.5 size-5 shrink-0 accent-spruce"
-          />
+          <input type="checkbox" name="terms" required className="mt-0.5 size-5 shrink-0 accent-spruce" />
           <span>
             I agree to the{" "}
-            <Link
-              href="/terms"
-              className="font-semibold text-spruce underline underline-offset-4"
-            >
+            <Link href="/terms" className="font-semibold text-spruce underline underline-offset-4">
               terms
             </Link>{" "}
             and have read the{" "}
-            <Link
-              href="/privacy"
-              className="font-semibold text-spruce underline underline-offset-4"
-            >
+            <Link href="/privacy" className="font-semibold text-spruce underline underline-offset-4">
               privacy notice
             </Link>
             .

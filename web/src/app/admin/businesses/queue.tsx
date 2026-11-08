@@ -23,10 +23,7 @@ const TABS: { status: ApprovalStatus; label: string }[] = [
   { status: "rejected", label: "Rejected" },
 ];
 
-const when = new Intl.DateTimeFormat("en-GB", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const when = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
 function ago(iso: string) {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -45,14 +42,10 @@ export function ReviewQueue() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const fail = (e: unknown) =>
-    setError(e instanceof Error ? e.message : "That didn't work.");
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : "That didn't work.");
 
   useEffect(() => {
-    if (me)
-      api<AdminBusiness[]>(`/admin/businesses?status=${status}`)
-        .then(setRows)
-        .catch(fail);
+    if (me) api<AdminBusiness[]>(`/admin/businesses?status=${status}`).then(setRows).catch(fail);
   }, [me, status]);
 
   function show(next: ApprovalStatus) {
@@ -74,15 +67,9 @@ export function ReviewQueue() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight">Business review</h1>
-          <p className="text-muted">
-            Check each new business before customers can find it.
-          </p>
+          <p className="text-muted">Check each new business before customers can find it.</p>
         </div>
-        <div
-          role="group"
-          aria-label="Show"
-          className="flex self-start rounded-[var(--radius-control)] bg-line p-1"
-        >
+        <div role="group" aria-label="Show" className="flex self-start rounded-[var(--radius-control)] bg-line p-1">
           {TABS.map((t) => (
             <button
               key={t.status}
@@ -91,15 +78,11 @@ export function ReviewQueue() {
               onClick={() => show(t.status)}
               className={cn(
                 "min-h-11 rounded-[10px] px-4 text-sm font-semibold transition-[background-color,box-shadow] duration-200",
-                status === t.status
-                  ? "bg-surface text-ink shadow-[var(--shadow-card)]"
-                  : "text-muted hover:text-ink",
+                status === t.status ? "bg-surface text-ink shadow-[var(--shadow-card)]" : "text-muted hover:text-ink",
               )}
             >
               {t.label}
-              {status === t.status && rows && (
-                <span className="ml-1.5 text-muted">{rows.length}</span>
-              )}
+              {status === t.status && rows && <span className="ml-1.5 text-muted">{rows.length}</span>}
             </button>
           ))}
         </div>
@@ -112,26 +95,16 @@ export function ReviewQueue() {
           <span className="flex size-12 items-center justify-center rounded-full bg-mint-strong text-spruce">
             <Icon name="check" strokeWidth={2.4} />
           </span>
-          <p className="font-semibold">
-            {status === "pending" ? "All caught up" : "Nothing here yet"}
-          </p>
+          <p className="font-semibold">{status === "pending" ? "All caught up" : "Nothing here yet"}</p>
           <p className="text-sm text-muted">
-            {status === "pending"
-              ? "New businesses appear here when their owners submit them."
-              : "Decided businesses are listed here."}
+            {status === "pending" ? "New businesses appear here when their owners submit them." : "Decided businesses are listed here."}
           </p>
         </div>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <ul aria-label="Businesses" className="flex flex-col gap-2">
             {rows.map((b, i) => (
-              <li
-                key={b.id}
-                className="rise"
-                style={
-                  { "--delay": `${Math.min(i, 8) * 40}ms` } as CSSProperties
-                }
-              >
+              <li key={b.id} className="rise" style={{ "--delay": `${Math.min(i, 8) * 40}ms` } as CSSProperties}>
                 <button
                   type="button"
                   aria-pressed={selected === b.id}
@@ -149,17 +122,11 @@ export function ReviewQueue() {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-bold">{b.name}</span>
                     <span className="text-sm text-muted">
-                      {CATEGORIES[b.category]} · {b.location_count}{" "}
-                      {b.location_count === 1 ? "location" : "locations"} ·{" "}
-                      {b.staff_count}{" "}
-                      {b.staff_count === 1 ? "person" : "people"}
+                      {CATEGORIES[b.category]} · {b.location_count} {b.location_count === 1 ? "location" : "locations"} ·{" "}
+                      {b.staff_count} {b.staff_count === 1 ? "person" : "people"}
                     </span>
                   </span>
-                  {b.submitted_at && (
-                    <span className="shrink-0 text-xs text-muted">
-                      {ago(b.submitted_at)}
-                    </span>
-                  )}
+                  {b.submitted_at && <span className="shrink-0 text-xs text-muted">{ago(b.submitted_at)}</span>}
                 </button>
               </li>
             ))}
@@ -176,15 +143,9 @@ export function ReviewQueue() {
           </div>
         </div>
       )}
-      <div
-        aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4"
-      >
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
         {notice && (
-          <p
-            key={notice}
-            className="slide-in pointer-events-auto flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-float)]"
-          >
+          <p key={notice} className="slide-in pointer-events-auto flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-float)]">
             <Icon name="check" width={16} height={16} className="text-leaf" />
             {notice}
           </p>
@@ -194,13 +155,7 @@ export function ReviewQueue() {
   );
 }
 
-function Detail({
-  summary,
-  onDecided,
-}: {
-  summary: AdminBusiness;
-  onDecided: (message: string) => Promise<void>;
-}) {
+function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (message: string) => Promise<void> }) {
   const [detail, setDetail] = useState<AdminBusinessDetail | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
@@ -212,9 +167,7 @@ function Detail({
   useEffect(() => {
     api<AdminBusinessDetail>(`/admin/businesses/${summary.id}`)
       .then(setDetail)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "That didn't work."),
-      );
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "That didn't work."));
   }, [summary.id]);
 
   async function act(kind: "approve" | "reject") {
@@ -222,18 +175,11 @@ function Detail({
     setError(null);
     try {
       if (kind === "approve") {
-        await api(`/admin/businesses/${summary.id}/approve`, {
-          method: "PATCH",
-        });
+        await api(`/admin/businesses/${summary.id}/approve`, { method: "PATCH" });
         await onDecided(`${summary.name} is approved.`);
       } else {
-        await api(`/admin/businesses/${summary.id}/reject`, {
-          method: "PATCH",
-          body: { reason, note: note.trim() || null },
-        });
-        await onDecided(
-          `${summary.name} is rejected. The owner sees the reason.`,
-        );
+        await api(`/admin/businesses/${summary.id}/reject`, { method: "PATCH", body: { reason, note: note.trim() || null } });
+        await onDecided(`${summary.name} is rejected. The owner sees the reason.`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
@@ -249,17 +195,11 @@ function Detail({
       className="slide-in flex flex-col gap-6 rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-float)] sm:p-7"
     >
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-bold tracking-[var(--tracking-eyebrow)] text-spruce uppercase">
-          {CATEGORIES[summary.category]}
-        </p>
+        <p className="text-xs font-bold tracking-[var(--tracking-eyebrow)] text-spruce uppercase">{CATEGORIES[summary.category]}</p>
         <h2 id="detail-title" className="text-2xl font-bold tracking-tight">
           {summary.name}
         </h2>
-        {summary.submitted_at && (
-          <p className="text-sm text-muted">
-            Submitted {when.format(new Date(summary.submitted_at))}
-          </p>
-        )}
+        {summary.submitted_at && <p className="text-sm text-muted">Submitted {when.format(new Date(summary.submitted_at))}</p>}
       </div>
       <FormError message={error} />
       <div className="grid gap-5 sm:grid-cols-2">
@@ -269,12 +209,7 @@ function Detail({
             <ul className="flex flex-col gap-2">
               {detail.locations.map((p) => (
                 <li key={p.id} className="flex items-start gap-2">
-                  <Icon
-                    name="pin"
-                    width={18}
-                    height={18}
-                    className="mt-0.5 shrink-0 text-spruce"
-                  />
+                  <Icon name="pin" width={18} height={18} className="mt-0.5 shrink-0 text-spruce" />
                   <span className="text-sm">
                     <span className="block font-semibold">{p.name}</span>
                     {p.address_text}
@@ -297,9 +232,7 @@ function Detail({
                   </span>
                   <span>
                     <span className="font-semibold">{s.display_name}</span>
-                    {s.title && (
-                      <span className="text-muted"> · {s.title}</span>
-                    )}
+                    {s.title && <span className="text-muted"> · {s.title}</span>}
                   </span>
                 </li>
               ))}
@@ -312,28 +245,18 @@ function Detail({
 
       {summary.rejection_reason && (
         <p className="rounded-[var(--radius-control)] bg-danger-soft px-4 py-3 text-sm">
-          <span className="font-semibold text-danger">
-            {REJECT_REASONS[summary.rejection_reason]}.
-          </span>{" "}
+          <span className="font-semibold text-danger">{REJECT_REASONS[summary.rejection_reason]}.</span>{" "}
           {summary.rejection_note}
         </p>
       )}
 
       {pending && !rejecting && (
         <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row">
-          <Button
-            size="lg"
-            loading={busy === "approve"}
-            onClick={() => act("approve")}
-          >
+          <Button size="lg" loading={busy === "approve"} onClick={() => act("approve")}>
             <Icon name="check" width={18} height={18} strokeWidth={2.4} />
             Approve
           </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            onClick={() => setRejecting(true)}
-          >
+          <Button size="lg" variant="secondary" onClick={() => setRejecting(true)}>
             Reject…
           </Button>
         </div>
@@ -348,9 +271,7 @@ function Detail({
           }}
         >
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-semibold">
-              Why are you rejecting it?
-            </legend>
+            <legend className="mb-2 text-sm font-semibold">Why are you rejecting it?</legend>
             <div className="flex flex-wrap gap-2">
               {Object.entries(REJECT_REASONS).map(([value, label]) => (
                 <label
@@ -358,9 +279,7 @@ function Detail({
                   className={cn(
                     "flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm font-semibold transition-colors duration-200",
                     "has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-spruce",
-                    reason === value
-                      ? "border-danger bg-danger-soft text-danger"
-                      : "border-line-strong hover:bg-ground",
+                    reason === value ? "border-danger bg-danger-soft text-danger" : "border-line-strong hover:bg-ground",
                   )}
                 >
                   <input

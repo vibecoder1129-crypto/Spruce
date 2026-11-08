@@ -7,20 +7,12 @@ import { Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import {
-  api,
-  CATEGORIES,
-  formatDuration,
-  formatPrice,
-  type Service,
-} from "@/lib/api";
+import { api, CATEGORIES, formatDuration, formatPrice, type Service } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 import { useBusiness } from "../shell";
 
-const DURATIONS = [
-  15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480,
-];
+const DURATIONS = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
 
 /** "35", "35.5" or "35,50" to cents. Null when it isn't a price. */
 function toMinor(text: string): number | null {
@@ -36,17 +28,12 @@ export function ServicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const fetchServices = useCallback(
-    () => api<Service[]>(`/businesses/${business.id}/services`),
-    [business.id],
-  );
+  const fetchServices = useCallback(() => api<Service[]>(`/businesses/${business.id}/services`), [business.id]);
 
   useEffect(() => {
     fetchServices()
       .then(setServices)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "That didn't work."),
-      );
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "That didn't work."));
   }, [fetchServices]);
 
   async function saved(message: string) {
@@ -66,9 +53,7 @@ export function ServicesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Services</h1>
-          <p className="mt-1 text-muted">
-            What customers can book, how long it takes and what it costs.
-          </p>
+          <p className="mt-1 text-muted">What customers can book, how long it takes and what it costs.</p>
         </div>
         <Button onClick={() => setEditing("new")}>
           <Icon name="services" /> Add service
@@ -86,15 +71,12 @@ export function ServicesPage() {
 
       <div className={cn("grid gap-6", editing && "lg:grid-cols-[1fr_22rem]")}>
         <div className="flex min-w-0 flex-col gap-6">
-          {services === null && !error && (
-            <p className="text-muted">Loading…</p>
-          )}
+          {services === null && !error && <p className="text-muted">Loading…</p>}
           {services !== null && active.length === 0 && (
             <div className="rise flex flex-col items-start gap-3 rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-8">
               <h2 className="text-xl font-bold">Add your first service</h2>
               <p className="max-w-prose text-muted">
-                Start with what you do most. You can add the rest, and say who
-                on your team does each one, after.
+                Start with what you do most. You can add the rest, and say who on your team does each one, after.
               </p>
               <Button variant="secondary" onClick={() => setEditing("new")}>
                 Add a service
@@ -102,23 +84,13 @@ export function ServicesPage() {
             </div>
           )}
           {groups.map(([key, list]) => (
-            <section
-              key={key}
-              aria-labelledby={`cat-${key}`}
-              className="rise flex flex-col gap-2"
-            >
-              <h2
-                id={`cat-${key}`}
-                className="text-sm font-bold tracking-[var(--tracking-label)] text-muted uppercase"
-              >
+            <section key={key} aria-labelledby={`cat-${key}`} className="rise flex flex-col gap-2">
+              <h2 id={`cat-${key}`} className="text-sm font-bold tracking-[var(--tracking-label)] text-muted uppercase">
                 {CATEGORIES[key]}
               </h2>
               <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
                 {list.map((s) => (
-                  <li
-                    key={s.id}
-                    className="border-b border-line last:border-b-0"
-                  >
+                  <li key={s.id} className="border-b border-line last:border-b-0">
                     <ServiceRow
                       service={s}
                       selected={editing !== "new" && editing?.id === s.id}
@@ -136,10 +108,7 @@ export function ServicesPage() {
               </summary>
               <ul className="border-t border-line">
                 {archived.map((s) => (
-                  <li
-                    key={s.id}
-                    className="border-b border-line last:border-b-0"
-                  >
+                  <li key={s.id} className="border-b border-line last:border-b-0">
                     <ServiceRow
                       service={s}
                       selected={editing !== "new" && editing?.id === s.id}
@@ -165,15 +134,7 @@ export function ServicesPage() {
   );
 }
 
-function ServiceRow({
-  service,
-  selected,
-  onEdit,
-}: {
-  service: Service;
-  selected: boolean;
-  onEdit: () => void;
-}) {
+function ServiceRow({ service, selected, onEdit }: { service: Service; selected: boolean; onEdit: () => void }) {
   return (
     <button
       type="button"
@@ -186,13 +147,9 @@ function ServiceRow({
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-semibold">{service.name}</span>
-        <span className="text-sm text-muted">
-          {formatDuration(service.duration_minutes)}
-        </span>
+        <span className="text-sm text-muted">{formatDuration(service.duration_minutes)}</span>
       </span>
-      <span className="font-bold tabular-nums">
-        {formatPrice(service.price_minor, service.currency)}
-      </span>
+      <span className="font-bold tabular-nums">{formatPrice(service.price_minor, service.currency)}</span>
       <span className="sr-only">Edit</span>
     </button>
   );
@@ -275,32 +232,15 @@ function ServicePanel({
       </div>
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
         <FormError message={error} />
-        <Field
-          label="Name"
-          name="name"
-          defaultValue={service?.name}
-          maxLength={80}
-          required
-          autoFocus
-        />
-        <Select
-          label="Category"
-          name="category"
-          defaultValue={service?.category ?? "hair"}
-          required
-        >
+        <Field label="Name" name="name" defaultValue={service?.name} maxLength={80} required autoFocus />
+        <Select label="Category" name="category" defaultValue={service?.category ?? "hair"} required>
           {Object.entries(CATEGORIES).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
           ))}
         </Select>
-        <Select
-          label="Duration"
-          name="duration"
-          defaultValue={service?.duration_minutes ?? 45}
-          required
-        >
+        <Select label="Duration" name="duration" defaultValue={service?.duration_minutes ?? 45} required>
           {durations.map((m) => (
             <option key={m} value={m}>
               {formatDuration(m)}
@@ -331,9 +271,7 @@ function ServicePanel({
                   method: "PATCH",
                   body: { active: !service.active },
                 }),
-              service.active
-                ? `Archived ${service.name}.`
-                : `Restored ${service.name}.`,
+              service.active ? `Archived ${service.name}.` : `Restored ${service.name}.`,
             )
           }
         >
