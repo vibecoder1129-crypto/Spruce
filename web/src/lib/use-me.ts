@@ -16,7 +16,11 @@ export function useMe(role: Me["role"]) {
 
   useEffect(() => {
     api<Me>("/me")
-      .then((m) => (m.mfa_pending || m.role !== role ? router.replace(nextStep(m)) : setMe(m)))
+      .then((m) =>
+        m.mfa_pending || m.role !== role
+          ? router.replace(nextStep(m))
+          : setMe(m),
+      )
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) router.replace("/login");
         else setError(e instanceof Error ? e.message : "That didn't work.");

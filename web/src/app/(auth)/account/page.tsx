@@ -8,7 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { api, ApiError, nextStep, type Me } from "@/lib/api";
 
-const roleLabel = { consumer: "Customer", owner: "Business owner", staff: "Team member", admin: "Platform admin" };
+const roleLabel = {
+  consumer: "Customer",
+  owner: "Business owner",
+  staff: "Team member",
+  admin: "Platform admin",
+};
 
 export default function AccountPage() {
   const router = useRouter();
@@ -52,7 +57,11 @@ export default function AccountPage() {
           <dt className="text-sm text-muted">Email</dt>
           <dd className="flex flex-wrap items-center gap-2 font-semibold">
             <span className="break-all">{me.email}</span>
-            {me.email_verified ? <Badge tone="spruce">Confirmed</Badge> : <Badge tone="warn">Not confirmed</Badge>}
+            {me.email_verified ? (
+              <Badge tone="spruce">Confirmed</Badge>
+            ) : (
+              <Badge tone="warn">Not confirmed</Badge>
+            )}
           </dd>
         </div>
         <div className="flex flex-col gap-1">
@@ -66,8 +75,17 @@ export default function AccountPage() {
       </dl>
       {!me.email_verified && (
         <div className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-warn-soft p-4">
-          <p className="text-sm">We sent a confirmation link to your email. It works for 48 hours.</p>
-          <Button variant="secondary" onClick={() => run("/auth/verify-email/resend", () => setNotice("We've sent a new link."))}>
+          <p className="text-sm">
+            We sent a confirmation link to your email. It works for 48 hours.
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              run("/auth/verify-email/resend", () =>
+                setNotice("We've sent a new link."),
+              )
+            }
+          >
             Send a new link
           </Button>
         </div>
@@ -81,10 +99,18 @@ export default function AccountPage() {
         </ButtonLink>
       )}
       <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row">
-        <Button variant="secondary" onClick={() => run("/auth/logout", () => router.push("/login"))}>
+        <Button
+          variant="secondary"
+          onClick={() => run("/auth/logout", () => router.push("/login"))}
+        >
           Log out
         </Button>
-        <Button variant="ghost" onClick={() => run("/auth/logout-everywhere", () => router.push("/login"))}>
+        <Button
+          variant="ghost"
+          onClick={() =>
+            run("/auth/logout-everywhere", () => router.push("/login"))
+          }
+        >
           Log out on all devices
         </Button>
       </div>

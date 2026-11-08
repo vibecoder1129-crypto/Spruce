@@ -16,11 +16,16 @@ export function VerifyForm() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
+    const code = String(
+      new FormData(event.currentTarget).get("code") ?? "",
+    ).trim();
     setBusy(true);
     setError(null);
     try {
-      const me = await api<Me>("/auth/mfa/verify", { method: "POST", body: { code } });
+      const me = await api<Me>("/auth/mfa/verify", {
+        method: "POST",
+        body: { code },
+      });
       router.push(nextStep(me));
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
@@ -40,7 +45,15 @@ export function VerifyForm() {
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
         {recovery ? (
-          <Field key="recovery" label="Recovery code" name="code" autoComplete="off" required autoFocus placeholder="xxxxxxxx-xxxxxxxx" />
+          <Field
+            key="recovery"
+            label="Recovery code"
+            name="code"
+            autoComplete="off"
+            required
+            autoFocus
+            placeholder="xxxxxxxx-xxxxxxxx"
+          />
         ) : (
           <Field
             key="totp"
@@ -65,7 +78,9 @@ export function VerifyForm() {
           }}
           className="min-h-11 self-center text-sm font-semibold text-spruce underline underline-offset-4"
         >
-          {recovery ? "Use my authenticator app instead" : "Lost your phone? Use a recovery code"}
+          {recovery
+            ? "Use my authenticator app instead"
+            : "Lost your phone? Use a recovery code"}
         </button>
       </form>
     </AuthShell>

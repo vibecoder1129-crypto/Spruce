@@ -13,7 +13,10 @@ function watchConsole(page: Page) {
   const problems: string[] = [];
   page.on("console", (msg) => {
     // A 401 after logout is expected; the browser logs every failed fetch as an error.
-    if (msg.type() === "error" && !msg.text().startsWith("Failed to load resource")) {
+    if (
+      msg.type() === "error" &&
+      !msg.text().startsWith("Failed to load resource")
+    ) {
       problems.push(msg.text());
     }
   });
@@ -28,7 +31,9 @@ async function expectAccessible(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-test("a customer signs up, lands on their account and logs out", async ({ page }) => {
+test("a customer signs up, lands on their account and logs out", async ({
+  page,
+}) => {
   const problems = watchConsole(page);
   const email = uniqueEmail("ana");
 
@@ -56,7 +61,9 @@ test("a wrong password shows a clear error", async ({ page }) => {
   await page.getByLabel("Email").fill(uniqueEmail("nobody"));
   await page.getByLabel("Password").fill("not the password at all");
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.locator("main").getByRole("alert")).toHaveText("Email or password is incorrect.");
+  await expect(page.locator("main").getByRole("alert")).toHaveText(
+    "Email or password is incorrect.",
+  );
 });
 
 test("the password can be shown and hidden again", async ({ page }) => {
@@ -67,24 +74,33 @@ test("the password can be shown and hidden again", async ({ page }) => {
   const toggle = page.getByRole("button", { name: "Show password" });
   await toggle.click();
   await expect(password).toHaveAttribute("type", "text");
-  await expect(page.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("button", { name: "Hide password" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Hide password" }).click();
   await expect(password).toHaveAttribute("type", "password");
 });
 
-test("a business owner is taken through two-step setup before onboarding", async ({ page, context }) => {
+test("a business owner is taken through two-step setup before onboarding", async ({
+  page,
+  context,
+}) => {
   const problems = watchConsole(page);
   const email = uniqueEmail("owner");
 
   await page.goto("/signup?as=business");
-  await expect(page.getByRole("radio", { name: /I run a business/ })).toBeChecked();
+  await expect(
+    page.getByRole("radio", { name: /I run a business/ }),
+  ).toBeChecked();
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("checkbox", { name: /I agree to the Terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/account\/security$/);
-  await expect(page.getByRole("img", { name: "QR code for your authenticator app" })).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "QR code for your authenticator app" }),
+  ).toBeVisible();
   await expectAccessible(page);
 
   await page.getByText("Can't scan? Enter the key by hand").click();
@@ -93,8 +109,12 @@ test("a business owner is taken through two-step setup before onboarding", async
   await page.getByLabel("6-digit code").fill(totp.generate());
   await page.getByRole("button", { name: "Turn on" }).click();
 
-  await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem")).toHaveCount(10);
+  await expect(
+    page.getByRole("heading", { name: "Save your recovery codes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem"),
+  ).toHaveCount(10);
   await page.getByRole("button", { name: "I've saved them" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
 
@@ -106,7 +126,9 @@ test("a business owner is taken through two-step setup before onboarding", async
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/login\/verify$/);
   await expectAccessible(page);
-  await page.getByLabel("6-digit code").fill(totp.generate({ timestamp: Date.now() + 30_000 }));
+  await page
+    .getByLabel("6-digit code")
+    .fill(totp.generate({ timestamp: Date.now() + 30_000 }));
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
   expect(problems).toEqual([]);

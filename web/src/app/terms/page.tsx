@@ -4,11 +4,14 @@ export const metadata: Metadata = { title: "Terms" };
 
 export default function Page() {
   return (
-    <main id="main" className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 py-16">
+    <main
+      id="main"
+      className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 py-16"
+    >
       <h1 className="text-3xl font-bold">Terms</h1>
       <p className="text-muted">
-        This is a draft placeholder. The final text, reviewed for EU law, is published here before
-        launch, and accounts are asked to accept it again.
+        This is a draft placeholder. The final text, reviewed for EU law, is
+        published here before launch, and accounts are asked to accept it again.
       </p>
     </main>
   );

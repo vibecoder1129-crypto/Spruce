@@ -36,7 +36,10 @@ export default function ForgotPasswordPage() {
         title="Check your email"
         intro="If an account uses that address, we've sent a link to reset the password. It works for 1 hour."
       >
-        <Link href="/login" className="font-semibold text-spruce underline underline-offset-4">
+        <Link
+          href="/login"
+          className="font-semibold text-spruce underline underline-offset-4"
+        >
           Back to log in
         </Link>
       </AuthShell>
@@ -44,10 +47,20 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthShell title="Reset your password" intro="Enter your email and we'll send you a reset link.">
+    <AuthShell
+      title="Reset your password"
+      intro="Enter your email and we'll send you a reset link."
+    >
       <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
         <FormError message={error} />
-        <Field label="Email" name="email" type="email" autoComplete="email" required autoFocus />
+        <Field
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          autoFocus
+        />
         <Button type="submit" size="lg" loading={busy}>
           Send reset link
         </Button>

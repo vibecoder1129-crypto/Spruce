@@ -14,7 +14,16 @@ type FieldProps = ComponentProps<"input"> & {
  * A labelled text input. The label, hint and error are wired to the input with
  * aria attributes, so assistive tech reads them in order.
  */
-export function Field({ label, hint, error, trailing, id, className, required, ...rest }: FieldProps) {
+export function Field({
+  label,
+  hint,
+  error,
+  trailing,
+  id,
+  className,
+  required,
+  ...rest
+}: FieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const hintId = hint ? `${inputId}-hint` : undefined;
@@ -52,7 +61,11 @@ export function Field({ label, hint, error, trailing, id, className, required, .
           )}
           {...rest}
         />
-        {trailing && <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>}
+        {trailing && (
+          <div className="absolute inset-y-0 right-1 flex items-center">
+            {trailing}
+          </div>
+        )}
       </div>
       {error && (
         <p id={errorId} className="text-sm font-medium text-danger">

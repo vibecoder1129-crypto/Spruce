@@ -6,9 +6,18 @@ import { Wordmark } from "@/components/ui/wordmark";
 import stillLife from "../../public/photos/still-life.jpg";
 
 const points = [
-  { title: "Real open times", text: "See when a professional is actually free, then book in a few taps." },
-  { title: "Pay at the venue", text: "No card needed to book. You pay the venue when you visit." },
-  { title: "Safe by default", text: "Encrypted personal data, and two-step verification for every business." },
+  {
+    title: "Real open times",
+    text: "See when a professional is actually free, then book in a few taps.",
+  },
+  {
+    title: "Pay at the venue",
+    text: "No card needed to book. You pay the venue when you visit.",
+  },
+  {
+    title: "Safe by default",
+    text: "Encrypted personal data, and two-step verification for every business.",
+  },
 ];
 
 const delay = (ms: number) => ({ "--delay": `${ms}ms` }) as CSSProperties;
@@ -32,16 +41,24 @@ export function AuthShell({
             <Wordmark className="text-2xl" />
           </Link>
         </header>
-        <main id="main" className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10 sm:py-14">
+        <main
+          id="main"
+          className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10 sm:py-14"
+        >
           <div className="rise flex flex-col gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+              {title}
+            </h1>
             {intro && <div className="text-pretty text-muted">{intro}</div>}
           </div>
           <div className="rise mt-8" style={delay(70)}>
             {children}
           </div>
           {footer && (
-            <div className="rise mt-8 border-t border-line pt-6 text-sm text-muted" style={delay(140)}>
+            <div
+              className="rise mt-8 border-t border-line pt-6 text-sm text-muted"
+              style={delay(140)}
+            >
               {footer}
             </div>
           )}
@@ -52,8 +69,18 @@ export function AuthShell({
         aria-label="About booking"
         className="relative hidden flex-col justify-end overflow-hidden rounded-[32px] bg-forest p-12 text-white lg:flex"
       >
-        <Image src={stillLife} alt="" fill sizes="45vw" placeholder="blur" className="object-cover" />
-        <div aria-hidden="true" className="absolute inset-0 bg-linear-to-t from-forest from-25% via-forest/75 via-45% to-forest/0 to-70%" />
+        <Image
+          src={stillLife}
+          alt=""
+          fill
+          sizes="45vw"
+          placeholder="blur"
+          className="object-cover"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-linear-to-t from-forest from-25% via-forest/75 via-45% to-forest/0 to-70%"
+        />
         <div className="relative flex max-w-md flex-col gap-8">
           <p className="text-3xl leading-tight font-semibold text-balance">
             Beauty and wellness, booked in a minute.
@@ -61,7 +88,10 @@ export function AuthShell({
           <ul className="flex flex-col gap-5">
             {points.map((p) => (
               <li key={p.title} className="flex gap-4">
-                <span aria-hidden="true" className="mt-2 size-2 shrink-0 rounded-full bg-leaf" />
+                <span
+                  aria-hidden="true"
+                  className="mt-2 size-2 shrink-0 rounded-full bg-leaf"
+                />
                 <span>
                   <span className="block font-semibold">{p.title}</span>
                   <span className="block text-sm text-leaf">{p.text}</span>
@@ -80,7 +110,10 @@ export function FormError({ message }: { message: string | null }) {
   return (
     <div aria-live="assertive" className="empty:hidden">
       {message && (
-        <p role="alert" className="rounded-[var(--radius-control)] bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] bg-danger-soft px-4 py-3 text-sm font-medium text-danger"
+        >
           {message}
         </p>
       )}

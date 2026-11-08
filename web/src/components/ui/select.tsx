@@ -5,7 +5,15 @@ import { cn } from "@/lib/cn";
 type SelectProps = ComponentProps<"select"> & { label: string; hint?: string };
 
 /** A labelled native select: keyboard, screen reader and mobile pickers work for free. */
-export function Select({ label, hint, id, className, children, required, ...rest }: SelectProps) {
+export function Select({
+  label,
+  hint,
+  id,
+  className,
+  children,
+  required,
+  ...rest
+}: SelectProps) {
   const autoId = useId();
   const selectId = id ?? autoId;
   const hintId = hint ? `${selectId}-hint` : undefined;
@@ -28,25 +36,30 @@ export function Select({ label, hint, id, className, children, required, ...rest
       )}
       <div className="relative">
         <select
-        id={selectId}
-        required={required}
-        aria-describedby={hintId}
-        className={cn(
-          "min-h-12 w-full appearance-none rounded-[var(--radius-control)] border border-line-strong bg-surface",
-          "pl-4 pr-10 text-base text-ink",
-          "transition-[border-color,box-shadow] duration-200 hover:border-muted",
-          "focus:border-spruce focus:shadow-[var(--shadow-focus-ring)]",
-        )}
-        {...rest}
-      >
-        {children}
+          id={selectId}
+          required={required}
+          aria-describedby={hintId}
+          className={cn(
+            "min-h-12 w-full appearance-none rounded-[var(--radius-control)] border border-line-strong bg-surface",
+            "pl-4 pr-10 text-base text-ink",
+            "transition-[border-color,box-shadow] duration-200 hover:border-muted",
+            "focus:border-spruce focus:shadow-[var(--shadow-focus-ring)]",
+          )}
+          {...rest}
+        >
+          {children}
         </select>
         <svg
           aria-hidden="true"
           viewBox="0 0 12 8"
           className="pointer-events-none absolute top-1/2 right-4 h-2 w-3 -translate-y-1/2 text-muted"
         >
-          <path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path
+            d="M1 1l5 5 5-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
         </svg>
       </div>
     </div>

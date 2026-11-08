@@ -24,14 +24,19 @@ for (const path of pages) {
     test("does not scroll sideways on a phone", async ({ page }) => {
       await page.goto(path);
       const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
       );
       expect(overflow).toBeLessThanOrEqual(0);
     });
   });
 }
 
-test("skip link moves focus to the main content", async ({ page, isMobile }) => {
+test("skip link moves focus to the main content", async ({
+  page,
+  isMobile,
+}) => {
   test.skip(isMobile, "keyboard flow");
   await page.goto("/");
   await page.keyboard.press("Tab");
@@ -57,7 +62,9 @@ test("makes no requests to third parties", async ({ page }) => {
   expect(external).toEqual([]);
 });
 
-test("the booking example walks through four steps and starts again", async ({ page }) => {
+test("the booking example walks through four steps and starts again", async ({
+  page,
+}) => {
   await page.goto("/#try");
   const demo = page.locator("#try");
   await demo.getByRole("button", { name: /Gel manicure/ }).click();
@@ -67,7 +74,9 @@ test("the booking example walks through four steps and starts again", async ({ p
   await demo.getByRole("button", { name: "Confirm booking" }).click();
   await expect(demo).toContainText("You're booked");
   await demo.getByRole("button", { name: "Start again" }).click();
-  await expect(demo.getByRole("group", { name: "What would you like?" })).toBeVisible();
+  await expect(
+    demo.getByRole("group", { name: "What would you like?" }),
+  ).toBeVisible();
 });
 
 test("the business preview shows what the visitor types", async ({ page }) => {
@@ -76,5 +85,7 @@ test("the business preview shows what the visitor types", async ({ page }) => {
   const section = page.locator("#business");
   await section.getByRole("button", { name: "Massage", exact: true }).click();
   await expect(section).toContainText("Birch Room");
-  await expect(section.getByRole("button", { name: "Massage", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    section.getByRole("button", { name: "Massage", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

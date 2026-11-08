@@ -357,7 +357,7 @@ async def preview_invite(token: str, request: Request, db: Db) -> InvitePreview:
 async def accept_invite(
     token: str, body: AcceptIn, request: Request, response: Response, db: Db
 ) -> MeOut:
-    await hit("signup", client_ip(request), limit=10, window_seconds=3600)
+    await hit("invite-accept", client_ip(request), limit=10, window_seconds=3600)
     invite = await _open_invite(db, token)
     staff = await db.scalar(
         select(StaffProfile).where(StaffProfile.id == invite.staff_id).with_for_update()

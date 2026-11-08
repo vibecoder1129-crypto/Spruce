@@ -26,11 +26,18 @@ export default function SecuritySetupPage() {
     api<Setup>("/auth/mfa/setup", { method: "POST" })
       .then(async (s) => {
         setSetup(s);
-        setQr(await QRCode.toString(s.otpauth_uri, { type: "svg", margin: 1, color: { dark: "#15201A", light: "#FFFFFF" } }));
+        setQr(
+          await QRCode.toString(s.otpauth_uri, {
+            type: "svg",
+            margin: 1,
+            color: { dark: "#15201A", light: "#FFFFFF" },
+          }),
+        );
       })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) router.replace("/login");
-        else if (e instanceof ApiError && e.status === 409) router.replace("/account");
+        else if (e instanceof ApiError && e.status === 409)
+          router.replace("/account");
         else setError(e instanceof Error ? e.message : "That didn't work.");
       });
   }, [router]);
@@ -40,8 +47,13 @@ export default function SecuritySetupPage() {
     setBusy(true);
     setError(null);
     try {
-      const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
-      const res = await api<{ recovery_codes: string[] }>("/auth/mfa/enable", { method: "POST", body: { code } });
+      const code = String(
+        new FormData(event.currentTarget).get("code") ?? "",
+      ).trim();
+      const res = await api<{ recovery_codes: string[] }>("/auth/mfa/enable", {
+        method: "POST",
+        body: { code },
+      });
       setCodes(res.recovery_codes);
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
@@ -57,13 +69,19 @@ export default function SecuritySetupPage() {
         title="Save your recovery codes"
         intro="If you lose your phone, each code lets you in once. Keep them somewhere safe, like a password manager. You won't see them again."
       >
-        <ul aria-label="Recovery codes" className="grid grid-cols-2 gap-2 rounded-[var(--radius-control)] bg-ground p-4 font-mono text-sm">
+        <ul
+          aria-label="Recovery codes"
+          className="grid grid-cols-2 gap-2 rounded-[var(--radius-control)] bg-ground p-4 font-mono text-sm"
+        >
           {codes.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ul>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <Button variant="secondary" onClick={() => navigator.clipboard.writeText(text)}>
+          <Button
+            variant="secondary"
+            onClick={() => navigator.clipboard.writeText(text)}
+          >
             Copy codes
           </Button>
           <a
@@ -74,7 +92,10 @@ export default function SecuritySetupPage() {
             Download
           </a>
         </div>
-        <Button size="lg" onClick={async () => router.push(nextStep(await api<Me>("/me")))}>
+        <Button
+          size="lg"
+          onClick={async () => router.push(nextStep(await api<Me>("/me")))}
+        >
           I&apos;ve saved them
         </Button>
       </AuthShell>
@@ -99,9 +120,15 @@ export default function SecuritySetupPage() {
             <summary className="min-h-11 cursor-pointer content-center font-semibold text-spruce">
               Can&apos;t scan? Enter the key by hand
             </summary>
-            <p className="mt-2 break-all rounded-[var(--radius-control)] bg-ground p-3 font-mono">{setup.secret}</p>
+            <p className="mt-2 break-all rounded-[var(--radius-control)] bg-ground p-3 font-mono">
+              {setup.secret}
+            </p>
           </details>
-          <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
+          <form
+            method="post"
+            onSubmit={onSubmit}
+            className="flex flex-col gap-5"
+          >
             <Field
               label="6-digit code"
               name="code"

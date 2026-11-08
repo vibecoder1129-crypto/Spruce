@@ -16,7 +16,8 @@ const variants: Record<Variant, string> = {
   primary:
     "bg-spruce bg-linear-to-b from-spruce to-spruce-hover/90 text-white shadow-[var(--shadow-button)] " +
     "hover:from-spruce-hover hover:to-spruce-hover",
-  secondary: "border border-line-strong bg-surface text-ink hover:border-spruce/40 hover:bg-mint",
+  secondary:
+    "border border-line-strong bg-surface text-ink hover:border-spruce/40 hover:bg-mint",
   ghost: "text-spruce hover:bg-mint",
   danger: "bg-danger text-white hover:brightness-90",
 };
@@ -27,7 +28,11 @@ const sizes: Record<Size, string> = {
   lg: "min-h-[54px] px-6 text-sm",
 };
 
-export function buttonClasses(variant: Variant = "primary", size: Size = "md", extra?: string) {
+export function buttonClasses(
+  variant: Variant = "primary",
+  size: Size = "md",
+  extra?: string,
+) {
   return cn(base, variants[variant], sizes[size], extra);
 }
 
@@ -67,8 +72,16 @@ export function Button({
   );
 }
 
-type ButtonLinkProps = ComponentProps<typeof Link> & { variant?: Variant; size?: Size };
+type ButtonLinkProps = ComponentProps<typeof Link> & {
+  variant?: Variant;
+  size?: Size;
+};
 
-export function ButtonLink({ variant, size, className, ...rest }: ButtonLinkProps) {
+export function ButtonLink({
+  variant,
+  size,
+  className,
+  ...rest
+}: ButtonLinkProps) {
   return <Link className={buttonClasses(variant, size, className)} {...rest} />;
 }

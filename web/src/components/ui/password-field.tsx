@@ -4,7 +4,10 @@ import { useState, type ComponentProps } from "react";
 
 import { Field } from "@/components/ui/field";
 
-type PasswordFieldProps = Omit<ComponentProps<typeof Field>, "type" | "trailing">;
+type PasswordFieldProps = Omit<
+  ComponentProps<typeof Field>,
+  "type" | "trailing"
+>;
 
 /** A password input with a Show/Hide toggle, so people can check what they typed. */
 export function PasswordField(props: PasswordFieldProps) {

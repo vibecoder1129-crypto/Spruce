@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, use, useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon, type IconName } from "@/components/icons";
@@ -15,12 +22,22 @@ import { logOut, useMe } from "@/lib/use-me";
 
 const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard", label: "Home", icon: "home" },
-  { href: "/dashboard/calendar", label: "Calendar", icon: "calendar", soon: true },
-  { href: "/dashboard/team", label: "Team", icon: "team", soon: true },
-  { href: "/dashboard/services", label: "Services", icon: "services", soon: true },
+  {
+    href: "/dashboard/calendar",
+    label: "Calendar",
+    icon: "calendar",
+    soon: true,
+  },
+  { href: "/dashboard/team", label: "Team", icon: "team" },
+  { href: "/dashboard/services", label: "Services", icon: "services" },
   { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
   { href: "/dashboard/reviews", label: "Reviews", icon: "reviews", soon: true },
-  { href: "/dashboard/settings", label: "Settings", icon: "settings", soon: true },
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: "settings",
+    soon: true,
+  },
 ];
 
 export const STATUS_LABEL = {
@@ -70,7 +87,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     if (!me) return;
     fetchBusiness()
       .then((b) => b && setBusiness(b))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "That didn't work."));
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "That didn't work."),
+      );
   }, [me, fetchBusiness]);
 
   return (
@@ -109,7 +128,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               {initials(business.name)}
             </span>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-bold">{business.name}</span>
+              <span className="truncate text-sm font-bold">
+                {business.name}
+              </span>
               <span className="flex items-center gap-1.5 text-xs text-muted">
                 <span
                   aria-hidden="true"
@@ -144,11 +165,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                   >
                     <Icon
                       name={item.icon}
-                      className={cn("transition-transform duration-200 group-hover:scale-110", active ? "text-leaf" : "text-muted")}
+                      className={cn(
+                        "transition-transform duration-200 group-hover:scale-110",
+                        active ? "text-leaf" : "text-muted",
+                      )}
                     />
                     <span className="flex-1">{item.label}</span>
                     {item.soon && (
-                      <span className={cn("text-[11px] font-semibold", active ? "text-leaf" : "text-muted")}>Soon</span>
+                      <span
+                        className={cn(
+                          "text-[11px] font-semibold",
+                          active ? "text-leaf" : "text-muted",
+                        )}
+                      >
+                        Soon
+                      </span>
                     )}
                   </Link>
                 </li>
@@ -170,10 +201,15 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </div>
-      <main id="main" className="mx-auto flex w-full max-w-5xl min-w-0 flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
+      <main
+        id="main"
+        className="mx-auto flex w-full max-w-5xl min-w-0 flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10"
+      >
         <FormError message={meError ?? error} />
         {business ? (
-          <BusinessContext value={{ business, reload }}>{children}</BusinessContext>
+          <BusinessContext value={{ business, reload }}>
+            {children}
+          </BusinessContext>
         ) : (
           !(meError ?? error) && <p className="text-muted">Loading…</p>
         )}
@@ -188,9 +224,14 @@ export function Upcoming({ title, text }: { title: string; text: string }) {
     <>
       <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
       <div className="rise flex flex-col items-start gap-4 rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface/60 p-8">
-        <span className="rounded-full bg-mint-strong px-3 py-1 text-xs font-bold text-spruce">Coming next</span>
+        <span className="rounded-full bg-mint-strong px-3 py-1 text-xs font-bold text-spruce">
+          Coming next
+        </span>
         <p className="max-w-prose text-pretty text-muted">{text}</p>
-        <Link href="/dashboard" className="font-semibold text-spruce underline underline-offset-4">
+        <Link
+          href="/dashboard"
+          className="font-semibold text-spruce underline underline-offset-4"
+        >
           Back to Home
         </Link>
       </div>
