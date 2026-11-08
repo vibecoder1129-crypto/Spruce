@@ -89,12 +89,12 @@ class TimeOffOut(BaseModel):
     reason: str
 
 
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[\d ()-]{6,24}$")]
+
+
 class GuestIn(Strict):
     name: Short
-    phone: (
-        Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[\d ()-]{6,24}$")]
-        | None
-    ) = None
+    phone: Phone | None = None
     email: EmailStr | None = None
 
 
@@ -172,3 +172,55 @@ class CalendarOut(BaseModel):
     # What the caller may do, so the web can hide what the API would refuse anyway.
     can_block_time: bool
     can_book_staff_ids: list[uuid.UUID]
+
+
+# --- customer booking (slice 5b) -------------------------------------------------------------
+
+
+class Slot(BaseModel):
+    staff_id: uuid.UUID
+    time: str  # "HH:MM" at the venue
+
+
+class AvailabilityOut(BaseModel):
+    date: date
+    timezone: str
+    slots: list[Slot]
+
+
+class CustomerBookingIn(Strict):
+    service_id: uuid.UUID
+    staff_id: uuid.UUID
+    start: LocalTime
+    name: Short
+    phone: Phone | None = None
+    notes: Notes = ""
+
+
+class RescheduleIn(Strict):
+    start: LocalTime
+    staff_id: uuid.UUID | None = None
+
+
+class MyBooking(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    business_name: str
+    location_name: str
+    address: str
+    service_id: uuid.UUID
+    service_name: str
+    staff_id: uuid.UUID
+    staff_name: str
+    start: str  # "YYYY-MM-DDTHH:MM" at the venue
+    end: str
+    timezone: str
+    status: BookingStatus
+    price_minor: int
+    currency: str
+    can_change: bool
+
+
+class MyBookingsOut(BaseModel):
+    upcoming: list[MyBooking]
+    past: list[MyBooking]
