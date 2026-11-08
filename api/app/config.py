@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     email_from: str = "no-reply@spruce.local"
     brevo_api_key: SecretStr | None = None
 
+    # "fake" for tests, CI and offline development; Nominatim needs outbound network.
+    geocoder: Literal["nominatim", "fake"] = "nominatim"
+    geocoder_url: str = "https://nominatim.openstreetmap.org"
+
 
 @lru_cache
 def get_settings() -> Settings:
