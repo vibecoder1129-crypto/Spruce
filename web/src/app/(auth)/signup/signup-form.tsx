@@ -9,7 +9,7 @@ import { TermsCheckbox } from "@/components/terms-checkbox";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PasswordField } from "@/components/ui/password-field";
-import { api, nextStep, type Me } from "@/lib/api";
+import { api, nextStep, safeNext, type Me } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
 
@@ -27,6 +27,8 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { errors, check, clear } = useFieldErrors();
+  // Where to return to, such as the booking a visitor was confirming.
+  const next = safeNext(params.get("next"));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +46,7 @@ export function SignupForm() {
           accept_terms: form.get("terms") === "on",
         },
       });
-      router.push(nextStep(me));
+      router.push(next && me.role === "consumer" ? next : nextStep(me));
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
       setBusy(false);
@@ -57,7 +59,7 @@ export function SignupForm() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-spruce underline underline-offset-4">
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-semibold text-spruce underline underline-offset-4">
             Log in
           </Link>
         </>

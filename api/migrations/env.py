@@ -8,6 +8,7 @@ import app.audit
 import app.booking.models
 import app.business.models
 import app.identity.models
+import app.marketplace.models
 import app.team.models  # noqa: F401
 from app.config import get_settings
 from app.db import Base

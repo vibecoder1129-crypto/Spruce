@@ -147,3 +147,15 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Map pin for venues (slice 5a). */
+.venue-pin {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--color-spruce);
+  border: 3px solid var(--color-surface);
+  box-shadow: 0 4px 10px rgb(21 32 26 / 0.3);
+}

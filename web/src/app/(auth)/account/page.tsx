@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, ApiError, nextStep, type Me } from "@/lib/api";
+import { api, ApiError, CATEGORIES, nextStep, type Favorite, type Me } from "@/lib/api";
 
 const roleLabel = { consumer: "Customer", owner: "Business owner", staff: "Team member", admin: "Platform admin" };
 
@@ -15,10 +16,15 @@ export default function AccountPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Favorite[] | null>(null);
 
   useEffect(() => {
     api<Me>("/me")
-      .then((m) => (m.mfa_pending ? router.replace(nextStep(m)) : setMe(m)))
+      .then((m) => {
+        if (m.mfa_pending) return router.replace(nextStep(m));
+        setMe(m);
+        if (m.role === "consumer") return api<Favorite[]>("/me/favorites").then(setSaved);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) router.replace("/login");
         else setError(e instanceof Error ? e.message : "That didn't work.");
@@ -71,6 +77,34 @@ export default function AccountPage() {
             Send a new link
           </Button>
         </div>
+      )}
+      {saved && (
+        <section aria-labelledby="saved" className="flex flex-col gap-2 border-t border-line pt-6">
+          <h2 id="saved" className="font-bold">
+            Saved venues
+          </h2>
+          {saved.length === 0 ? (
+            <p className="text-sm text-muted">
+              Nothing saved yet.{" "}
+              <Link href="/search" className="font-semibold text-spruce underline underline-offset-4">
+                Find a venue
+              </Link>
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line">
+              {saved.map((f) => (
+                <li key={f.business_id}>
+                  <Link href={`/b/${f.business_id}`} className="flex min-h-11 flex-col justify-center py-2 hover:text-spruce">
+                    <span className="font-semibold">{f.business_name}</span>
+                    <span className="text-sm text-muted">
+                      {CATEGORIES[f.category] ?? f.category} · {f.city}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
       <p aria-live="polite" className="text-sm text-spruce empty:hidden">
         {notice}

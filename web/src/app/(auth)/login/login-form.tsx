@@ -8,7 +8,7 @@ import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PasswordField } from "@/components/ui/password-field";
-import { api, nextStep, type Me } from "@/lib/api";
+import { api, nextStep, safeNext, type Me } from "@/lib/api";
 import { useFieldErrors } from "@/lib/form-errors";
 
 export function LoginForm() {
@@ -22,6 +22,12 @@ export function LoginForm() {
     () => new URLSearchParams(window.location.search).has("signed-out"),
     () => false,
   );
+  // Where to return to, such as the booking a visitor was confirming.
+  const next = useSyncExternalStore(
+    () => () => {},
+    () => safeNext(new URLSearchParams(window.location.search).get("next")),
+    () => null,
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,7 +40,7 @@ export function LoginForm() {
         method: "POST",
         body: { email: form.get("email"), password: form.get("password") },
       });
-      router.push(nextStep(me));
+      router.push(next && !me.mfa_pending && me.role === "consumer" ? next : nextStep(me));
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
       setBusy(false);
@@ -47,7 +53,7 @@ export function LoginForm() {
       footer={
         <>
           New here?{" "}
-          <Link href="/signup" className="font-semibold text-spruce underline underline-offset-4">
+          <Link href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className="font-semibold text-spruce underline underline-offset-4">
             Create an account
           </Link>
         </>
