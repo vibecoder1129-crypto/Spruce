@@ -399,3 +399,15 @@ export function nextStep(me: Me): string {
   if (me.role === "staff") return "/staff";
   return "/bookings";
 }
+
+export type Client = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  notes: string;
+  source: "imported" | "added";
+  created_at: string;
+};
+
+export type ImportResult = { total: number; added: number; duplicates: number; invalid: { row: number; reason: string }[] };
