@@ -46,6 +46,12 @@ test("an owner sets up services and a team member, who signs in until a permissi
   await page.goto("/dashboard/services");
   await expect(page.getByRole("heading", { name: "Add your first service" })).toBeVisible();
   await expectAccessible(page);
+  // An empty form explains itself next to each field.
+  await page.getByRole("main").getByRole("button", { name: "Add service" }).first().click();
+  await page.getByRole("region", { name: "New service" }).getByRole("button", { name: "Add service" }).click();
+  await expect(page.getByText("Name the service, for example Haircut.")).toBeVisible();
+  await expect(page.getByText("Enter a price, for example 35.")).toBeVisible();
+  await expectAccessible(page);
   await addService(page, "Haircut", "35");
   await addService(page, "Colour", "79,50");
   const list = page.getByRole("region", { name: "Hair salon" });
@@ -81,7 +87,7 @@ test("an owner sets up services and a team member, who signs in until a permissi
   // Invite
   await panel.getByRole("tab", { name: "Details" }).click();
   const staffEmail = uniqueEmail("marta");
-  await panel.getByLabel("Invite to sign in").fill(staffEmail);
+  await panel.getByLabel("Their email").fill(staffEmail);
   await panel.getByRole("button", { name: "Send invite" }).click();
   await expect(page.getByRole("status")).toContainText("Invite sent to Marta");
 

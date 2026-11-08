@@ -9,6 +9,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { api, CATEGORIES, formatDuration, formatPrice, type Service } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useFieldErrors } from "@/lib/form-errors";
 
 import { useBusiness } from "../shell";
 
@@ -169,6 +170,7 @@ function ServicePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [priceError, setPriceError] = useState<string | undefined>();
+  const { errors, check, clear } = useFieldErrors();
   const durations =
     service && !DURATIONS.includes(service.duration_minutes)
       ? [...DURATIONS, service.duration_minutes].sort((a, b) => a - b)
@@ -189,6 +191,7 @@ function ServicePanel({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     const price = toMinor(String(form.get("price")));
     if (price === null) {
@@ -230,9 +233,28 @@ function ServicePanel({
           <span className="sr-only">Close</span>
         </button>
       </div>
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form
+        method="post"
+        noValidate
+        onSubmit={onSubmit}
+        onInput={(e) => {
+          const name = (e.target as { name?: string }).name ?? "";
+          clear(name);
+          if (name === "price") setPriceError(undefined);
+        }}
+        className="flex flex-col gap-4"
+      >
         <FormError message={error} />
-        <Field label="Name" name="name" defaultValue={service?.name} maxLength={80} required autoFocus />
+        <Field
+          label="Name"
+          name="name"
+          defaultValue={service?.name}
+          maxLength={80}
+          data-missing="Name the service, for example Haircut."
+          error={errors.name}
+          required
+          autoFocus
+        />
         <Select label="Category" name="category" defaultValue={service?.category ?? "hair"} required>
           {Object.entries(CATEGORIES).map(([key, label]) => (
             <option key={key} value={key}>
@@ -252,8 +274,9 @@ function ServicePanel({
           name="price"
           inputMode="decimal"
           defaultValue={service ? (service.price_minor / 100).toFixed(2) : ""}
-          hint={service ? `In ${service.currency}.` : "In your local currency."}
-          error={priceError}
+          hint={service ? `In ${service.currency}, for example 35 or 35.50.` : "In your local currency, for example 35 or 35.50."}
+          data-missing="Enter a price, for example 35."
+          error={errors.price ?? priceError}
           required
         />
         <Button type="submit" loading={busy}>

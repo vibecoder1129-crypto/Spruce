@@ -20,6 +20,7 @@ import {
   type Staff,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useFieldErrors } from "@/lib/form-errors";
 
 import { useBusiness } from "../shell";
 
@@ -181,9 +182,11 @@ function NewMember({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { errors, check, clear } = useFieldErrors();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !check(event.currentTarget)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -207,9 +210,18 @@ function NewMember({
 
   return (
     <Panel title="New team member" onClose={onClose}>
-      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form method="post" noValidate onSubmit={onSubmit} onInput={(e) => clear((e.target as { name?: string }).name ?? "")} className="flex flex-col gap-4">
         <FormError message={error} />
-        <Field label="Name" name="name" maxLength={80} hint="As customers will see it." required autoFocus />
+        <Field
+          label="Name"
+          name="name"
+          maxLength={80}
+          hint="As customers will see it."
+          data-missing="Enter the name customers will see."
+          error={errors.name}
+          required
+          autoFocus
+        />
         <Field label="Title" name="title" maxLength={80} placeholder="Stylist" />
         <Select label="Location" name="location" required>
           {places.map((p) => (
@@ -286,6 +298,8 @@ function MemberPanel({
 function Details({ person, places, onChanged }: { person: Staff; places: Place[]; onChanged: (t: string) => void }) {
   const [busy, setBusy] = useState<"save" | "invite" | "archive" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const invite = useFieldErrors();
+  const details = useFieldErrors();
 
   async function run(kind: "save" | "invite" | "archive", work: () => Promise<unknown>, text: string) {
     setBusy(kind);
@@ -306,9 +320,12 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
       {person.active && !person.has_login && (
         <form
           method="post"
+          noValidate
           className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-mint p-4"
+          onInput={() => invite.clear("email")}
           onSubmit={(event) => {
             event.preventDefault();
+            if (busy || !invite.check(event.currentTarget)) return;
             const email = String(new FormData(event.currentTarget).get("email"));
             void run(
               "invite",
@@ -321,12 +338,15 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
             );
           }}
         >
+          <p className="font-semibold">Invite {person.display_name} to sign in</p>
           <Field
-            label="Invite to sign in"
+            label="Their email"
             name="email"
             type="email"
             autoComplete="off"
-            hint="We'll email them a link to set a password."
+            hint="We'll email them a link to set a password. It works for 7 days."
+            data-missing="Enter their email to send the invite."
+            error={invite.errors.email}
             required
           />
           <Button type="submit" variant="secondary" loading={busy === "invite"}>
@@ -336,9 +356,12 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
       )}
       <form
         method="post"
+        noValidate
         className="flex flex-col gap-4"
+        onInput={(e) => details.clear((e.target as { name?: string }).name ?? "")}
         onSubmit={(event) => {
           event.preventDefault();
+          if (busy || !details.check(event.currentTarget)) return;
           const form = new FormData(event.currentTarget);
           void run(
             "save",
@@ -355,7 +378,15 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
           );
         }}
       >
-        <Field label="Name" name="name" defaultValue={person.display_name} maxLength={80} required />
+        <Field
+          label="Name"
+          name="name"
+          defaultValue={person.display_name}
+          maxLength={80}
+          data-missing="Enter the name customers will see."
+          error={details.errors.name}
+          required
+        />
         <Field label="Title" name="title" defaultValue={person.title} maxLength={80} />
         <Select label="Location" name="location" defaultValue={person.location_id} required>
           {places.map((p) => (
