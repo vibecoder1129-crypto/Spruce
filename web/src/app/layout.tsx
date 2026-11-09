@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
 import { brand } from "@/brand";
+import { OfflineBar } from "@/components/offline-bar";
+import { ServiceWorker } from "@/components/service-worker";
 
 import "./globals.css";
 
@@ -15,6 +17,7 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: { default: brand.name, template: `%s · ${brand.name}` },
   description: "Book beauty and wellness appointments at venues near you.",
+  appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -32,6 +35,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         {children}
+        <OfflineBar />
+        <ServiceWorker />
       </body>
     </html>
   );

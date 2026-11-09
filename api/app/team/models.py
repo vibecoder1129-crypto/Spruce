@@ -11,10 +11,12 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    SmallInteger,
     String,
     Uuid,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.business.models import Category
@@ -53,6 +55,18 @@ class Service(IdMixin, CreatedMixin, Base):
     price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Weeks until clients usually come back; 0 sends no rebooking reminder (slice 9).
+    rebook_weeks: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    # The consultation form customers fill in before the visit (slice 13).
+    form_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("consultation_forms.id", ondelete="SET NULL"), index=True
+    )
+    # Online bookings need a patch test here 48 hours to 6 months before (slice 13).
+    needs_patch_test: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -121,3 +135,43 @@ class StaffInvite(IdMixin, CreatedMixin, Base):
     invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+
+
+class Resource(IdMixin, CreatedMixin, Base):
+    """A room or a piece of equipment at one location (slice 12). Deleting it frees its bookings."""
+
+    __tablename__ = "resources"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    location_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
+class ServiceResource(Base):
+    """A service with rows here needs one of these resources, free for the whole visit."""
+
+    __tablename__ = "service_resources"
+
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("services.id", ondelete="CASCADE"), primary_key=True
+    )
+    resource_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("resources.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+
+class ConsultationForm(IdMixin, CreatedMixin, Base):
+    """Questions a venue asks before a visit (slice 13). The questions hold no personal data."""
+
+    __tablename__ = "consultation_forms"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    # [{"label": ..., "kind": "text" | "yes_no"}]
+    questions: Mapped[list[dict[str, str]]] = mapped_column(JSONB, nullable=False)

@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -9,12 +9,15 @@ from pydantic import (
     Field,
     NaiveDatetime,
     PlainSerializer,
+    StrictBool,
+    StrictStr,
     StringConstraints,
     model_validator,
 )
 
-from app.booking.models import BookingSource, BookingStatus
+from app.booking.models import BookingSource, BookingStatus, PaymentMethod
 from app.business.schemas import Short, Strict
+from app.team.schemas import Question
 
 
 def _quarter_hour(value: time) -> time:
@@ -128,10 +131,26 @@ class BookingOut(BaseModel):
     client_flags: list[str]  # "risk", "regular": this venue's view of the customer
 
 
+class SaleOut(BaseModel):
+    price_minor: int
+    tip_minor: int
+    method: PaymentMethod
+    currency: str
+
+
+# Whether a visit's consultation form is still to be filled in (slice 13).
+FormState = Literal["none", "to_fill", "filled"]
+
+
 class BookingDetail(BookingOut):
     guest_phone: str | None
     guest_email: str | None
     notes: str
+    resource_name: str | None  # the room or equipment it uses (slice 12)
+    form: FormState
+    needs_patch_test: bool
+    patch_test_at: datetime | None  # this customer's last one at this venue
+    sale: SaleOut | None  # what was paid, once checked out (slice 14)
 
 
 class DayShift(BaseModel):
@@ -176,6 +195,22 @@ class CalendarOut(BaseModel):
     can_mark_staff_ids: list[uuid.UUID]  # whose started visits the caller may mark done or no-show
 
 
+class WeekDay(BaseModel):
+    date: date
+    shift: DayShift | None
+
+
+class WeekOut(BaseModel):
+    """One person's week (slice 6c)."""
+
+    week: date
+    timezone: str
+    staff: Column
+    days: list[WeekDay]
+    bookings: list[BookingOut]
+    time_off: list[TimeOffOut]
+
+
 # --- customer booking (slice 5b) -------------------------------------------------------------
 
 
@@ -190,6 +225,9 @@ class AvailabilityOut(BaseModel):
     slots: list[Slot]
 
 
+Channel = Literal["link", "website", "instagram", "google", "facebook"]
+
+
 class CustomerBookingIn(Strict):
     service_id: uuid.UUID
     staff_id: uuid.UUID
@@ -197,6 +235,12 @@ class CustomerBookingIn(Strict):
     name: Short
     phone: Phone | None = None
     notes: Notes = ""
+    channel: Channel | None = None  # only a label for the venue's own counts
+
+
+class ChannelCount(BaseModel):
+    channel: Channel | None
+    bookings: int
 
 
 class RescheduleIn(Strict):
@@ -222,8 +266,78 @@ class MyBooking(BaseModel):
     currency: str
     can_change: bool
     cancel_window_hours: int
+    form: FormState
 
 
 class MyBookingsOut(BaseModel):
     upcoming: list[MyBooking]
     past: list[MyBooking]
+
+
+class WaitlistIn(Strict):
+    service_id: uuid.UUID
+    date: date
+    name: Short
+
+
+class MyWaitlistEntry(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    business_name: str
+    service_id: uuid.UUID
+    service_name: str
+    date: date
+    notified: bool
+
+
+class WaitingOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    service_name: str
+    joined_at: datetime
+    notified: bool
+
+
+TextAnswer = Annotated[StrictStr, StringConstraints(strip_whitespace=True, max_length=1000)]
+
+
+class FormAnswersIn(Strict):
+    answers: Annotated[list[TextAnswer | StrictBool], Field(max_length=30)]
+    # Health information needs the customer's explicit consent (GDPR art. 9(2)(a)).
+    consent: Literal[True]
+
+
+class BookingFormOut(BaseModel):
+    name: str
+    questions: list[Question]
+    answers: list[str | bool] | None
+    submitted_at: datetime | None
+
+
+Money = Annotated[int, Field(ge=0, le=10_000_000, strict=True)]
+
+
+class CheckoutIn(Strict):
+    price_minor: Money
+    tip_minor: Money
+    method: PaymentMethod
+
+
+class TakingsTotals(BaseModel):
+    visits: int
+    sales_minor: int
+    tips_minor: int
+    commission_minor: int
+
+
+class TakingsRow(TakingsTotals):
+    staff_id: uuid.UUID
+    display_name: str
+
+
+class TakingsOut(BaseModel):
+    currency: str
+    rows: list[TakingsRow]
+    totals: TakingsTotals
+    # Amount plus tip per way of paying, to check against the till and the card machine.
+    by_method: dict[PaymentMethod, int]

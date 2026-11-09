@@ -79,12 +79,14 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await expectAccessible(page);
   await form.getByRole("button", { name: "Book" }).click();
   await expect(page.getByRole("status")).toHaveText("Booked Liga Ozola at 10:00.");
-  const appointment = board.getByRole("button", { name: "10:00 Liga Ozola Haircut · Added by the venue (until 10:45)" });
+  const appointment = board.getByRole("button", {
+    name: "10:00 Liga Ozola Haircut · Added by the venue (until 10:45)",
+  });
   await expect(appointment).toBeVisible();
   // The day at a glance, with a colour key in words.
   const summary = page.getByRole("region", { name: "Day summary" });
   await expect(summary.getByRole("definition").first()).toHaveText("1");
-  await expect(summary).toContainText("Expected takings");
+  await expect(summary).toContainText("expected takings");
   await expect(summary.getByRole("list", { name: "Colour key" })).toContainText("Added by the venue");
 
   // The same time can't be booked twice, even from the keyboard path that skips the board.
@@ -97,11 +99,31 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await expect(form.getByRole("alert")).toHaveText("That time was just taken.");
   await form.getByRole("button", { name: "Close" }).click();
 
+  // Drag it an hour later. The API re-checks the move like any other.
+  const column = board.locator(":scope > div");
+  const opens = Number(await column.getAttribute("data-opens"));
+  await appointment.dragTo(column, {
+    sourcePosition: { x: 20, y: 5 },
+    targetPosition: { x: 30, y: ((11 * 60 - opens) / 15) * ROW + 5 },
+  });
+  await expect(page.getByRole("status")).toHaveText("Moved Liga Ozola to 11:00 with Marta.");
+  const moved = board.getByRole("button", { name: "11:00 Liga Ozola Haircut · Added by the venue (until 11:45)" });
+  await expect(moved).toBeVisible();
+
   // List view
   await page.getByRole("button", { name: "List" }).click();
   await expect(page.getByRole("table")).toContainText("Liga Ozola");
   await expectAccessible(page);
-  await page.getByRole("button", { name: "Board" }).click();
+
+  // Week view: Marta's week, and an appointment there opens on its day.
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  const week = page.getByRole("region", { name: "Marta's week" });
+  await expect(week.getByRole("listitem").filter({ hasText: "Liga Ozola" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next week" })).toBeVisible();
+  await expectAccessible(page);
+  await week.getByRole("button", { name: /11:00 Liga Ozola/ }).click();
+  await expect(page.getByRole("complementary").getByRole("heading", { name: "Liga Ozola" })).toBeVisible();
+  await page.getByRole("complementary").getByRole("button", { name: "Close" }).click();
 
   // Marta sees her own column only.
   await page.goto("/dashboard/team");
@@ -127,7 +149,7 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
 
   // Open the appointment and cancel it: the slot is free again.
   await page.goto("/dashboard/calendar");
-  await appointment.click();
+  await moved.click();
   const detail = page.getByRole("complementary");
   await expect(detail.getByRole("heading", { name: "Liga Ozola" })).toBeVisible();
   await expect(detail).toContainText("+371 2000 0000");
@@ -135,5 +157,5 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await detail.getByRole("button", { name: "Cancel appointment" }).click();
   await detail.getByRole("button", { name: "Yes, cancel it" }).click();
   await expect(page.getByRole("status")).toContainText("Cancelled Liga Ozola's appointment");
-  await expect(appointment).toHaveCount(0);
+  await expect(moved).toHaveCount(0);
 });
