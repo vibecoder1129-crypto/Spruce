@@ -6,7 +6,7 @@ import { useEffect } from "react";
 export function ServiceWorker() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => undefined); // the site works without it
+    navigator.serviceWorker.register(`/sw.js?build=${process.env.SPRUCE_BUILD}`).catch(() => undefined); // the site works without it
   }, []);
   return null;
 }

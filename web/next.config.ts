@@ -16,6 +16,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // A new build gets a new service worker cache, so the saved offline page never goes stale.
+  env: { SPRUCE_BUILD: process.env.SPRUCE_BUILD ?? String(Date.now()) },
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,

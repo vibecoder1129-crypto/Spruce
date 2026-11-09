@@ -1,7 +1,8 @@
 // Spruce service worker (slice 11). It keeps one thing: the offline page and the static files it
 // needs. Pages always come from the network; only when that fails is the offline page shown.
 // No page, API answer or customer data is ever cached here.
-const CACHE = "spruce-offline-v1";
+// One cache per build (the page registers /sw.js?build=...), so a new build refreshes it.
+const CACHE = `spruce-offline-${new URL(self.location.href).searchParams.get("build") ?? "dev"}`;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -18,6 +18,9 @@ export default function Page() {
       <p className="text-muted">
         Spruce needs a connection to show your bookings and open times. Check your Wi-Fi or mobile data, then try again.
       </p>
+      <p className="text-muted">
+        If you were booking, check Your bookings once you&apos;re back to see whether it went through.
+      </p>
       <TryAgain />
     </main>
   );
