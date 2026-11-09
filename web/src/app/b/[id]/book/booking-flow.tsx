@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -256,6 +256,7 @@ export function BookingFlow() {
           onTime={(t, who) => go({ date: day, time: t, with: who })}
           onChangeService={() => go({ service: null, staff: null, time: null, with: null })}
           onChangeStaff={() => go({ staff: null, time: null, with: null })}
+          onAnyone={() => go({ staff: ANY, time: null, with: null })}
           me={me}
           here={here}
         />
@@ -326,9 +327,11 @@ function TimeStep({
   onTime,
   onChangeService,
   onChangeStaff,
+  onAnyone,
   me,
   here,
 }: {
+  onAnyone: () => void;
   me: Me | null | undefined;
   here: string;
   businessId: string;
@@ -400,13 +403,24 @@ function TimeStep({
         {longDate(day)}. Times are {timezone.replaceAll("_", " ")} time.
       </p>
       <FormError message={failed} />
-      <div aria-live="polite">
+      {/* Only this line is announced, so form errors below aren't read twice. */}
+      <p className="sr-only" aria-live="polite">
+        {slots === null ? "" : times.length === 0 ? "No open times on this day." : `${times.length} open times.`}
+      </p>
+      <div>
         {slots === null && !failed && <p className="text-muted">Finding open times…</p>}
         {slots && times.length === 0 && (
           <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-5">
             <p className="text-muted">
               No open times on this day. Try another day{staff !== ANY ? " or anyone available" : ""}.
             </p>
+            {staff !== ANY && (
+              <div>
+                <Button variant="secondary" onClick={onAnyone}>
+                  Switch to anyone available
+                </Button>
+              </div>
+            )}
             {staff === ANY && <Waitlist key={day} serviceId={service.id} day={day} me={me} here={here} />}
           </div>
         )}
@@ -456,6 +470,13 @@ function Waitlist({
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<WaitlistEntry | null>(null);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const done = useRef<HTMLParagraphElement>(null);
+  const joinButton = useRef<HTMLButtonElement>(null);
+  const reopened = useRef(false);
+  useEffect(() => {
+    if (joined) done.current?.focus();
+    else if (!open && reopened.current) joinButton.current?.focus();
+  }, [joined, open]);
 
   if (me === undefined) return null;
   if (me === null) {
@@ -470,15 +491,18 @@ function Waitlist({
   if (me.role !== "consumer") return null;
   if (joined) {
     return (
-      <p role="status" className="rounded-[var(--radius-control)] bg-mint p-4 font-semibold">
-        You&apos;re on the waitlist for {longDate(joined.date)}. We&apos;ll email you if a time frees up.
+      <p ref={done} tabIndex={-1} role="status" className="rounded-[var(--radius-control)] bg-mint p-4 font-semibold">
+        You&apos;re on the waitlist for {longDate(joined.date)}. We&apos;ll email you if a time frees up.{" "}
+        <Link href="/bookings" className="text-spruce underline underline-offset-4">
+          See your waitlist
+        </Link>
       </p>
     );
   }
   if (!open) {
     return (
       <div>
-        <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Button ref={joinButton} variant="secondary" onClick={() => setOpen(true)}>
           Join the waitlist for this day
         </Button>
       </div>
@@ -514,13 +538,20 @@ function Waitlist({
         className="max-w-sm"
         error={nameError}
         onChange={() => setNameError(undefined)}
+        autoFocus
       />
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
         <Button type="submit" disabled={busy}>
           {busy ? "Joining…" : "Join waitlist"}
         </Button>
-        <Button variant="ghost" onClick={() => setOpen(false)}>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            reopened.current = true;
+            setOpen(false);
+          }}
+        >
           Not now
         </Button>
       </div>

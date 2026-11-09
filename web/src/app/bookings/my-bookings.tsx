@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { PublicHeader } from "@/components/public-header";
@@ -33,11 +33,20 @@ export function MyBookingsPage() {
   const [waiting, setWaiting] = useState<WaitlistEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  // What the person acted on may have gone, so keep keyboard focus on the result.
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus();
+  }, [notice]);
 
   const load = useCallback(() => {
     api<WaitlistEntry[]>("/me/waitlist")
       .then(setWaiting)
-      .catch(() => undefined); // the bookings call below reports a signed-out visit
+      .catch((e: unknown) => {
+        // A signed-out visit is handled by the bookings call below.
+        if (!(e instanceof ApiError && e.status === 401))
+          setError("Your waitlist couldn't be loaded. Refresh to try again.");
+      });
     api<MyBookings>("/me/bookings")
       .then(setData)
       .catch((e: unknown) => {
@@ -71,7 +80,12 @@ export function MyBookingsPage() {
         </div>
         <FormError message={error} />
         {notice && (
-          <p role="status" className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm">
+          <p
+            ref={noticeRef}
+            tabIndex={-1}
+            role="status"
+            className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm"
+          >
             {notice}
           </p>
         )}
@@ -113,47 +127,15 @@ export function MyBookingsPage() {
                 </h2>
                 <ul className="flex flex-col gap-3">
                   {waiting.map((w) => (
-                    <li
+                    <WaitRow
                       key={w.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4"
-                    >
-                      <div>
-                        <p className="font-semibold">
-                          {w.service_name} at {w.business_name}
-                        </p>
-                        <p className="text-sm text-muted">
-                          {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(
-                            parseDate(w.date),
-                          )}
-                          {w.notified
-                            ? ". A time opened up and we emailed you."
-                            : ". We'll email you if a time frees up."}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {w.notified && (
-                          <ButtonLink
-                            href={`/b/${w.business_id}/book?service=${w.service_id}&staff=any&date=${w.date}`}
-                          >
-                            See times
-                          </ButtonLink>
-                        )}
-                        <Button
-                          variant="secondary"
-                          onClick={async () => {
-                            try {
-                              await api(`/me/waitlist/${w.id}`, { method: "DELETE" });
-                              setNotice(`You've left the waitlist for ${w.service_name} at ${w.business_name}.`);
-                              load();
-                            } catch (e) {
-                              setError(e instanceof Error ? e.message : "That didn't work.");
-                            }
-                          }}
-                        >
-                          Leave<span className="sr-only"> the waitlist for {w.service_name}</span>
-                        </Button>
-                      </div>
-                    </li>
+                      entry={w}
+                      onLeft={() => {
+                        setNotice(`You've left the waitlist for ${w.service_name} at ${w.business_name}.`);
+                        load();
+                      }}
+                      onError={setError}
+                    />
                   ))}
                 </ul>
               </section>
@@ -269,6 +251,56 @@ function BookingCard({
           </div>
         </div>
       )}
+    </li>
+  );
+}
+
+function WaitRow({
+  entry: w,
+  onLeft,
+  onError,
+}: {
+  entry: WaitlistEntry;
+  onLeft: () => void;
+  onError: (text: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function leave() {
+    setBusy(true);
+    onError(null);
+    try {
+      await api(`/me/waitlist/${w.id}`, { method: "DELETE" });
+      onLeft();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "That didn't work.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4">
+      <div>
+        <p className="font-semibold">
+          {w.service_name} at {w.business_name}
+        </p>
+        <p className="text-sm text-muted">
+          {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(
+            parseDate(w.date),
+          )}
+          {w.notified ? ". A time opened up and we emailed you." : ". We'll email you if a time frees up."}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {w.notified && (
+          <ButtonLink href={`/b/${w.business_id}/book?service=${w.service_id}&staff=any&date=${w.date}`}>
+            See times
+          </ButtonLink>
+        )}
+        <Button variant="secondary" loading={busy} onClick={leave}>
+          Leave<span className="sr-only"> the waitlist for {w.service_name}</span>
+        </Button>
+      </div>
     </li>
   );
 }

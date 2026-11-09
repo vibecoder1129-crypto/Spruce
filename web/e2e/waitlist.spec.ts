@@ -71,10 +71,15 @@ test("a customer waits for a full day and hears when the venue cancels", async (
   await expect(c).toHaveURL(/\/bookings$/);
   await c.goto(`/b/${await businessId(page)}`);
   await c.getByRole("link", { name: "Book Haircut" }).click();
-  await c.getByRole("button", { name: /^Anyone available/ }).click();
+  // Marta's day is full; one tap switches to anyone, and the waitlist is offered there.
+  await c.getByRole("button", { name: /^Marta/ }).click();
   await c.getByRole("group", { name: "Day" }).getByRole("button").nth(2).click();
-  await expect(c.getByText("No open times on this day.")).toBeVisible();
+  await expect(c.getByText(/No open times on this day/).first()).toBeVisible();
+  await expect(c.getByRole("button", { name: "Join the waitlist for this day" })).toHaveCount(0);
+  await c.getByRole("button", { name: "Switch to anyone available" }).click();
+  await expect(c.getByText("Professional: Anyone available")).toBeVisible();
   await c.getByRole("button", { name: "Join the waitlist for this day" }).click();
+  await expect(c.getByLabel("Your name")).toBeFocused();
   await c.getByRole("button", { name: "Join waitlist" }).click();
   await expect(c.getByText("Enter your name.")).toBeVisible();
   await c.getByLabel("Your name").fill("Ana Ozola");
@@ -82,6 +87,8 @@ test("a customer waits for a full day and hears when the venue cancels", async (
   await expectAccessible(c);
   await c.getByRole("button", { name: "Join waitlist" }).click();
   await expect(c.getByRole("status")).toContainText("You're on the waitlist for");
+  await expect(c.getByRole("status")).toBeFocused();
+  await expect(c.getByRole("link", { name: "See your waitlist" })).toBeVisible();
 
   await c.goto("/bookings");
   const list = c.getByRole("region", { name: "Waitlist" });
@@ -113,6 +120,7 @@ test("a customer waits for a full day and hears when the venue cancels", async (
   await c.goto("/bookings");
   await list.getByRole("button", { name: /Leave/ }).click();
   await expect(c.getByRole("status")).toContainText("You've left the waitlist");
+  await expect(c.getByRole("status")).toBeFocused();
   await expect(list).toHaveCount(0);
   await context.close();
 });
