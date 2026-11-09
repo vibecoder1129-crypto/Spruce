@@ -86,6 +86,7 @@ class StaffOut(BaseModel):
     has_login: bool
     active: bool = True
     service_ids: list[uuid.UUID] = []
+    commission_percent: int = 0
 
 
 class CountryOut(BaseModel):

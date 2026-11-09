@@ -19,7 +19,7 @@ const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard/team", label: "Team", icon: "team" },
   { href: "/dashboard/services", label: "Services", icon: "services" },
   { href: "/dashboard/clients", label: "Clients", icon: "client" },
-  { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
+  { href: "/dashboard/reports", label: "Reports", icon: "reports" },
   { href: "/dashboard/reviews", label: "Reviews", icon: "reviews", soon: true },
   { href: "/dashboard/settings", label: "Settings", icon: "settings" },
 ];

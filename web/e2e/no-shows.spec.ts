@@ -100,7 +100,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
     .getByRole("row", { name: /Ana Ozola/ })
     .getByRole("button")
     .click();
-  await expect(page.getByRole("button", { name: "Mark as done" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "No-show", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Marked Ana Ozola as a no-show.");
@@ -109,7 +109,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
     .getByRole("button")
     .click();
   await expect(page.getByRole("definition").filter({ hasText: /^No-show$/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Mark as done" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Check out" })).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -117,5 +117,5 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
 async function businessId(page: Page): Promise<string> {
   await page.goto("/dashboard");
   const link = await page.getByRole("region", { name: "Your booking link" }).getByLabel("Link").inputValue();
-  return link.match(/\/b\/([0-9a-f-]+)\/book$/)![1];
+  return link.match(/\/b\/([0-9a-f-]+)\/book/)![1];
 }

@@ -16,6 +16,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // A new build gets a new service worker cache, so the saved offline page never goes stale.
+  env: { SPRUCE_BUILD: process.env.SPRUCE_BUILD ?? String(Date.now()) },
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
@@ -28,7 +30,11 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // The worker must be checked for updates on every visit.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+    ];
   },
   async rewrites() {
     // Same-origin API: session cookies stay first-party and no CORS is needed in the browser.

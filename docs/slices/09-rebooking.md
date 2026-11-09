@@ -38,5 +38,5 @@ for other week counts, and no personal data in logs.
 ## Decisions
 
 - Reminders are on by default (the EU "existing customer, similar service" soft opt-in), with an
-  opt-out in every email and in Account. Customer signup says so in one line. Pending archit's confirmation.
+  opt-out in every email and in Account. Customer signup says so in one line. Confirmed by archit (9 Nov).
 - A daily command, not a worker: hosting (slice 23) schedules it. shortcut: until then it's run by hand or by Task Scheduler on Jarvis.

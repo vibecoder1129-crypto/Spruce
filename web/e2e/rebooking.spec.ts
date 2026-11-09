@@ -112,5 +112,5 @@ test("an owner sets a rebook time, and a customer books again and controls remin
 async function businessId(page: Page): Promise<string> {
   await page.goto("/dashboard");
   const link = await page.getByRole("region", { name: "Your booking link" }).getByLabel("Link").inputValue();
-  return link.match(/\/b\/([0-9a-f-]+)\/book$/)![1];
+  return link.match(/\/b\/([0-9a-f-]+)\/book/)![1];
 }

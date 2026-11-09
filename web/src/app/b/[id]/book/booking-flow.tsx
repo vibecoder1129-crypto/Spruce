@@ -13,11 +13,13 @@ import {
   addDays,
   api,
   ApiError,
+  asChannel,
   CATEGORIES,
   formatDuration,
   formatPrice,
   parseDate,
   type Availability,
+  type Channel,
   type Me,
   type MyBooking,
   type MyBookings,
@@ -69,6 +71,7 @@ export function BookingFlow() {
   const time = params.get("time");
   const pick = params.get("with");
   const rescheduleId = params.get("reschedule");
+  const channel = asChannel(params.get("from"));
 
   const onMe = useCallback((m: Me | null) => setMe(m), []);
 
@@ -204,6 +207,7 @@ export function BookingFlow() {
                       <span className="block font-semibold">{s.name}</span>
                       <span className="text-sm text-muted">
                         {CATEGORIES[s.category] ?? s.category} · {formatDuration(s.duration_minutes)}
+                        {s.needs_patch_test && " · Needs a patch test"}
                       </span>
                     </span>
                     <span className="font-semibold">{formatPrice(s.price_minor, s.currency)}</span>
@@ -221,6 +225,12 @@ export function BookingFlow() {
             value={`${service.name}, ${formatDuration(service.duration_minutes)}`}
             onChange={() => go({ service: null, staff: null, time: null, with: null })}
           />
+          {service.needs_patch_test && (
+            <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">
+              This needs a patch test at {store.name} at least 48 hours before your visit, and within the last 6 months.
+              If you haven&apos;t had one there, contact them to arrange it first.
+            </p>
+          )}
           <h2 id="pick-pro" className="text-xl font-bold">
             Choose a professional
           </h2>
@@ -274,6 +284,7 @@ export function BookingFlow() {
           time={time}
           moving={rescheduleId}
           movingBooking={moving}
+          channel={channel}
           onBack={() => go({ time: null, with: null })}
           onDone={(booking) => setFinished({ booking, at: here })}
           onTaken={(text) => {
@@ -571,6 +582,7 @@ function Confirm({
   time,
   moving,
   movingBooking,
+  channel,
   onBack,
   onDone,
   onTaken,
@@ -585,6 +597,7 @@ function Confirm({
   time: string;
   moving: string | null;
   movingBooking: MyBooking | null;
+  channel: Channel | null;
   onBack: () => void;
   onDone: (b: MyBooking) => void;
   onTaken: (text: string) => void;
@@ -614,6 +627,7 @@ function Confirm({
               name: String(form.get("name") ?? "").trim(),
               phone: String(form.get("phone") ?? "").trim() || null,
               notes: String(form.get("notes") ?? "").trim(),
+              channel,
             },
           });
       onDone(booking);

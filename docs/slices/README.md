@@ -10,11 +10,11 @@ spec first, tests first (with the 401, 403 and 404 denials), and the smallest co
 | 7 | Waitlist | Built |
 | 8 | Admin support mode (owner-approved, audited) | Built |
 | 9 | Rebooking reminders and "Book again" | Built |
-| 10 | Book now widget (venue site, Instagram, Google) | |
-| 11 | Installable app (PWA) | |
-| 12 | Rooms and equipment | |
-| 13 | Consultation forms and patch tests | |
-| 14 | Checkout, commissions and tips | |
+| 10 | Book now widget (venue site, Instagram, Google) | Built |
+| 11 | Installable app (PWA) | Built |
+| 12 | Rooms and equipment | Built |
+| 13 | Consultation forms and patch tests | Built |
+| 14 | Checkout, commissions and tips | Built |
 | 15 | Product stock | |
 | 16 | Gift cards, packages and memberships | |
 | 17 | Email and SMS marketing | |
