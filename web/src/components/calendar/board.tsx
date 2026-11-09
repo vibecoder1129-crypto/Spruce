@@ -19,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import {
   addDays,
   api,
+  ApiError,
   clock,
   dayAt,
   formatDuration,
@@ -30,7 +31,9 @@ import {
   type Booking,
   type BookingDetail,
   type DayBoard as Board,
+  type PaymentMethod,
   type TimeOff,
+  type VisitForm,
   type Waiting,
   type WeekBoard,
 } from "@/lib/api";
@@ -1417,6 +1420,10 @@ function AppointmentPanel({
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  // When the owner asked to record one, to say when online booking opens.
+  const [confirmPatch, setConfirmPatch] = useState<number | null>(null);
+  const [patchNote, setPatchNote] = useState<string | null>(null);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
@@ -1443,6 +1450,12 @@ function AppointmentPanel({
   const open = detail.status === "pending" || detail.status === "confirmed";
   const mayChange = open && board.can_book_staff_ids.includes(detail.staff_id);
   const mayMark = detail.status === "confirmed" && started && board.can_mark_staff_ids.includes(detail.staff_id);
+  // Patch tests are kept on the customer's account at this venue, so not for walk-in guests.
+  const mayRecord =
+    detail.source === "consumer" &&
+    detail.status !== "cancelled" &&
+    detail.needs_patch_test &&
+    board.can_mark_staff_ids.includes(detail.staff_id);
   const person = board.staff.find((s) => s.id === detail.staff_id)?.display_name ?? "";
   const chosen = staff ?? detail.staff_id;
   const people = board.staff.filter((s) => board.can_book_staff_ids.includes(s.id));
@@ -1472,19 +1485,30 @@ function AppointmentPanel({
     }
   }
 
-  async function mark(outcome: "complete" | "no-show") {
+  async function noShow() {
     if (!detail) return;
     setBusy(true);
     setError(null);
     try {
-      await api(`/bookings/${detail.id}/${outcome}`, { method: "PATCH" });
-      await onChanged(
-        outcome === "complete"
-          ? `Marked ${detail.client_name}'s appointment as done.`
-          : `Marked ${detail.client_name} as a no-show.`,
-      );
+      await api(`/bookings/${detail.id}/no-show`, { method: "PATCH" });
+      await onChanged(`Marked ${detail.client_name} as a no-show.`);
     } catch (e) {
       setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  async function recordPatchTest() {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
+      setConfirmPatch(null);
+      setPatchNote(`Patch test recorded for ${detail.client_name} today.`);
+    } catch (e) {
+      setError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -1544,6 +1568,26 @@ function AppointmentPanel({
             )}
             <dt className="text-muted">Notes</dt>
             <dd className="whitespace-pre-line">{detail.notes || "None"}</dd>
+            {(detail.needs_patch_test || detail.patch_test_at) && (
+              <>
+                <dt className="text-muted">Patch test</dt>
+                <dd>
+                  {detail.patch_test_at
+                    ? `Done ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(new Date(detail.patch_test_at))}`
+                    : "None recorded"}
+                </dd>
+              </>
+            )}
+            {detail.sale && (
+              <>
+                <dt className="text-muted">Paid</dt>
+                <dd className="font-semibold">
+                  {formatPrice(detail.sale.price_minor, detail.sale.currency)},{" "}
+                  {METHODS[detail.sale.method].toLowerCase()}
+                  {detail.sale.tip_minor > 0 && ` · tip ${formatPrice(detail.sale.tip_minor, detail.sale.currency)}`}
+                </dd>
+              </>
+            )}
             {(detail.status === "completed" || detail.status === "no_show") && (
               <>
                 <dt className="text-muted">Outcome</dt>
@@ -1551,15 +1595,71 @@ function AppointmentPanel({
               </>
             )}
           </dl>
-          {mayMark && (
+          {detail.form !== "none" && <VisitAnswers bookingId={detail.id} state={detail.form} />}
+          {patchNote && (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm font-semibold text-spruce"
+            >
+              {patchNote}
+            </p>
+          )}
+          {mayRecord && confirmPatch === null && (
+            <Button
+              variant="secondary"
+              className="self-start"
+              disabled={busy}
+              onClick={() => setConfirmPatch(Date.now())}
+            >
+              Record patch test today
+            </Button>
+          )}
+          {mayRecord && confirmPatch !== null && (
+            <div
+              role="alertdialog"
+              aria-labelledby="patch-q"
+              className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-warn-soft p-4"
+            >
+              <p id="patch-q" className="text-sm font-semibold">
+                Record that {detail.client_name} had a patch test here today? They can then book this service online
+                from{" "}
+                {new Intl.DateTimeFormat("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: tz,
+                }).format(new Date(confirmPatch + 48 * 3600 * 1000))}
+                .
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={busy} onClick={recordPatchTest} autoFocus>
+                  Yes, record it
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmPatch(null)} disabled={busy}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          )}
+          {detail.needs_patch_test && detail.source !== "consumer" && (
+            <p className="text-sm text-muted">
+              Patch tests are kept on a customer&apos;s Spruce account, so they can&apos;t be recorded for a walk-in.
+            </p>
+          )}
+          {mayMark && !checkingOut && (
             <div className="flex flex-wrap gap-2">
-              <Button loading={busy} onClick={() => mark("complete")}>
-                Mark as done
+              <Button disabled={busy} onClick={() => setCheckingOut(true)}>
+                Check out
               </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => mark("no-show")}>
+              <Button variant="secondary" disabled={busy} onClick={noShow}>
                 No-show
               </Button>
             </div>
+          )}
+          {mayMark && checkingOut && (
+            <Checkout detail={detail} onDone={(paid) => onChanged(paid)} onBack={() => setCheckingOut(false)} />
           )}
           {mayChange && !confirmCancel && (
             <div className="flex flex-wrap gap-2">
@@ -1622,6 +1722,227 @@ function AppointmentPanel({
         </form>
       )}
     </>
+  );
+}
+
+const METHODS = { card: "Card", cash: "Cash", other: "Other" } as const;
+
+/** "35", "35.5" or "35,50" to cents. Null when it isn't an amount. */
+function toMinor(text: string): number | null {
+  const clean = text.trim().replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
+  return Math.round(Number(clean) * 100);
+}
+
+/** Records what was paid at the venue and finishes the visit (slice 14). Spruce takes no money. */
+function Checkout({
+  detail,
+  onDone,
+  onBack,
+}: {
+  detail: BookingDetail;
+  onDone: (text: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  // No default: a hurried cash payment mustn't be recorded as card.
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [price, setPrice] = useState((detail.price_minor / 100).toFixed(2));
+  const [tipText, setTipText] = useState("");
+  const [errors, setErrors] = useState<{ price?: string; tip?: string; method?: string }>({});
+  const amount = toMinor(price);
+  const tipAmount = tipText.trim() ? toMinor(tipText) : 0;
+  const unusual = amount !== null && detail.price_minor > 0 && amount > detail.price_minor * 3;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const found = {
+      price: amount === null ? "Enter an amount like 35 or 35.50." : undefined,
+      tip: tipAmount === null ? "Enter a tip like 5, or leave it empty." : undefined,
+      method: method === null ? "Choose how they paid." : undefined,
+    };
+    setErrors(found);
+    if (amount === null || tipAmount === null || method === null) {
+      const first = amount === null ? "[name=price]" : tipAmount === null ? "[name=tip]" : "[name=method]";
+      event.currentTarget.querySelector<HTMLInputElement>(first)?.focus();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/bookings/${detail.id}/checkout`, {
+        method: "POST",
+        body: { price_minor: amount, tip_minor: tipAmount, method },
+      });
+      await onDone(`Checked out ${detail.client_name}: ${formatPrice(amount + tipAmount, detail.currency)} paid.`);
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={submit}
+      aria-labelledby="checkout-title"
+      className="flex flex-col gap-4 rounded-[var(--radius-control)] bg-ground p-4"
+    >
+      <h3 id="checkout-title" className="font-bold">
+        Check out
+      </h3>
+      <FormError message={error} />
+      <Field
+        label="Amount for the service"
+        name="price"
+        inputMode="decimal"
+        value={price}
+        onChange={(e) => {
+          setPrice(e.target.value);
+          setErrors((x) => ({ ...x, price: undefined }));
+        }}
+        hint={`In ${detail.currency}. Change it for a discount or an extra.`}
+        error={errors.price}
+        required
+        autoFocus
+      />
+      {unusual && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-3 py-2 text-sm">
+          That&apos;s more than three times the booked price of {formatPrice(detail.price_minor, detail.currency)}.
+          Check it before you confirm.
+        </p>
+      )}
+      <Field
+        label="Tip"
+        name="tip"
+        inputMode="decimal"
+        placeholder="0"
+        hint="Goes to the person in full, with no commission."
+        value={tipText}
+        onChange={(e) => {
+          setTipText(e.target.value);
+          setErrors((x) => ({ ...x, tip: undefined }));
+        }}
+        error={errors.tip}
+      />
+      <fieldset className="flex flex-col gap-1" aria-describedby={errors.method ? "method-error" : undefined}>
+        <legend className="text-sm font-semibold">
+          Paid by
+          <span className="font-normal text-muted">
+            {" "}
+            <span aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </legend>
+        <div className="flex flex-wrap gap-x-5">
+          {(Object.keys(METHODS) as PaymentMethod[]).map((m) => (
+            <label key={m} className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="method"
+                value={m}
+                checked={method === m}
+                onChange={() => {
+                  setMethod(m);
+                  setErrors((x) => ({ ...x, method: undefined }));
+                }}
+                className="size-5 accent-spruce"
+              />
+              {METHODS[m]}
+            </label>
+          ))}
+        </div>
+        {errors.method && (
+          <p id="method-error" className="text-sm font-medium text-danger">
+            {errors.method}
+          </p>
+        )}
+      </fieldset>
+      <p className="text-base font-bold" aria-live="polite">
+        Total to take:{" "}
+        {amount !== null && tipAmount !== null ? formatPrice(amount + tipAmount, detail.currency) : "check the amounts"}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" loading={busy}>
+          Confirm checkout
+        </Button>
+        <Button variant="ghost" onClick={onBack} disabled={busy}>
+          Back
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** A visit's consultation answers (slice 13). Fetched only when asked for, since each read is audited. */
+function VisitAnswers({ bookingId, state }: { bookingId: string; state: "to_fill" | "filled" }) {
+  const [form, setForm] = useState<VisitForm | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function show() {
+    setBusy(true);
+    setError(null);
+    try {
+      setForm(await api<VisitForm>(`/bookings/${bookingId}/form`));
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 404
+          ? "Only the owner and the person doing this visit can read the answers."
+          : message(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby={`answers-${bookingId}`}
+      className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-ground p-3"
+    >
+      <h3 id={`answers-${bookingId}`} className="text-sm font-semibold">
+        Consultation form
+      </h3>
+      {state === "to_fill" ? (
+        <p className="text-sm text-muted">Not filled in yet.</p>
+      ) : form ? (
+        <dl className="flex flex-col gap-2 text-sm">
+          {form.questions.map((q, i) => {
+            const a = form.answers?.[i];
+            return (
+              <div key={i}>
+                <dt className="text-muted">{q.label}</dt>
+                <dd className="whitespace-pre-line font-semibold">
+                  {a === true ? (
+                    // A yes often means something to check before the visit, so it stands out.
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5">
+                      <span aria-hidden="true">!</span> Yes
+                    </span>
+                  ) : a === false ? (
+                    "No"
+                  ) : (
+                    a || "No answer"
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <>
+          {error ? (
+            <p className="text-sm">{error}</p>
+          ) : (
+            <Button variant="secondary" className="self-start" loading={busy} onClick={show}>
+              Show answers
+            </Button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
