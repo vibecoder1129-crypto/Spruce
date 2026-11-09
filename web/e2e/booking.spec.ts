@@ -34,7 +34,8 @@ test("a customer books, signing in at Confirm, then moves and cancels it; the ow
   // The owner's link to share.
   await page.goto("/dashboard");
   const share = page.getByRole("region", { name: "Your booking link" });
-  await expect(share.getByLabel("Link")).toHaveValue(/\/b\/[0-9a-f-]+\/book$/);
+  await expect(share.getByLabel("Link")).toHaveValue(/\/b\/[0-9a-f-]+\/book\?from=link$/);
+  await share.getByText("Website", { exact: true }).click();
   await expect(share.getByLabel("Button for your website")).toHaveValue(new RegExp(`Book at ${name}</a>$`));
   await expectAccessible(page);
 
@@ -53,7 +54,7 @@ test("a customer books, signing in at Confirm, then moves and cancels it; the ow
     timezoneId: "Europe/Riga",
   });
   const c = await customer.newPage();
-  await c.goto((await share.getByLabel("Link").inputValue()).replace(/\/book$/, ""));
+  await c.goto((await share.getByLabel("Link").inputValue()).replace(/\/book\?from=website$/, ""));
   await c.getByRole("link", { name: "Book Haircut" }).click();
   await expect(c.getByRole("heading", { name: "Choose a professional" })).toBeVisible();
   await expectAccessible(c);

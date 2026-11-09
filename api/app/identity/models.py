@@ -38,6 +38,10 @@ class User(IdMixin, CreatedMixin, Base):
     email_index: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True, nullable=False)
     email_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Customers' "time to rebook" emails (slice 9). They can turn them off in their account.
+    rebook_reminders: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Europe/Riga")
@@ -81,6 +85,10 @@ class Session(IdMixin, CreatedMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     mfa_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set while a platform admin helps as this owner (slice 8). Every change it makes is audited.
+    support_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE")
+    )
 
     __table_args__ = (
         Index("ix_sessions_user_active", "user_id", "revoked_at"),

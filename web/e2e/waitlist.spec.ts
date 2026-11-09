@@ -128,5 +128,5 @@ test("a customer waits for a full day and hears when the venue cancels", async (
 async function businessId(page: Page): Promise<string> {
   await page.goto("/dashboard");
   const link = await page.getByRole("region", { name: "Your booking link" }).getByLabel("Link").inputValue();
-  return link.match(/\/b\/([0-9a-f-]+)\/book$/)![1];
+  return link.match(/\/b\/([0-9a-f-]+)\/book/)![1];
 }
