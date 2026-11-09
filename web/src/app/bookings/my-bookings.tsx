@@ -26,6 +26,13 @@ function when(booking: MyBooking): string {
   return `${date.format(parseDate(d))}, ${t} to ${booking.end.split("T")[1]}`;
 }
 
+/** "Tuesday 10 November at 09:00": the deadline for a visit's form. */
+function startsAt(booking: MyBooking): string {
+  const [d, t] = booking.start.split("T");
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(parseDate(d));
+  return `${day} at ${t}`;
+}
+
 /** Feature list 2 (Home hub, My Bookings): a customer's upcoming and past bookings. */
 export function MyBookingsPage() {
   const router = useRouter();
@@ -203,6 +210,22 @@ function BookingCard({
         <br />
         {b.address} · {b.timezone.replaceAll("_", " ")} time
       </p>
+      {upcoming && b.form !== "none" && (b.status === "confirmed" || b.status === "pending") && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line bg-ground px-4 py-3">
+          <p className="text-sm">
+            {b.form === "to_fill"
+              ? `${b.business_name} asks you to fill in a short form before your visit, ${startsAt(b)}.`
+              : "Thanks, the venue has your answers."}
+          </p>
+          <ButtonLink href={`/bookings/${b.id}/form`} variant={b.form === "to_fill" ? "primary" : "secondary"}>
+            {b.form === "to_fill" ? "Fill in the form" : "Change your answers"}
+            <span className="sr-only">
+              {" "}
+              for {b.service_name} at {b.business_name}
+            </span>
+          </ButtonLink>
+        </div>
+      )}
       {upcoming && b.can_change && <p className="text-sm">{policyText(b.cancel_window_hours)}</p>}
       {locked && (
         <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">

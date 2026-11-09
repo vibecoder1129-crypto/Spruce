@@ -207,6 +207,7 @@ export function BookingFlow() {
                       <span className="block font-semibold">{s.name}</span>
                       <span className="text-sm text-muted">
                         {CATEGORIES[s.category] ?? s.category} · {formatDuration(s.duration_minutes)}
+                        {s.needs_patch_test && " · Needs a patch test"}
                       </span>
                     </span>
                     <span className="font-semibold">{formatPrice(s.price_minor, s.currency)}</span>
@@ -224,6 +225,12 @@ export function BookingFlow() {
             value={`${service.name}, ${formatDuration(service.duration_minutes)}`}
             onChange={() => go({ service: null, staff: null, time: null, with: null })}
           />
+          {service.needs_patch_test && (
+            <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">
+              This needs a patch test at {store.name} at least 48 hours before your visit, and within the last 6 months.
+              If you haven&apos;t had one there, contact them to arrange it first.
+            </p>
+          )}
           <h2 id="pick-pro" className="text-xl font-bold">
             Choose a professional
           </h2>

@@ -182,6 +182,7 @@ def _staff_out(staff: StaffProfile, service_ids: list[uuid.UUID] | None = None) 
         has_login=staff.user_id is not None,
         active=staff.active,
         service_ids=sorted(service_ids or []),
+        commission_percent=staff.commission_percent,
     )
 
 
