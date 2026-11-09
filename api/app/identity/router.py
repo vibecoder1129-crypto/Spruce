@@ -22,7 +22,7 @@ from app.crypto import (
 )
 from app.identity import mfa
 from app.identity.deps import Auth, Db, FullySignedIn, SignedIn, client_ip
-from app.identity.models import OneTimeToken, TokenPurpose, User
+from app.identity.models import OneTimeToken, Role, TokenPurpose, User
 from app.identity.schemas import (
     TERMS_VERSION,
     CodeIn,
@@ -30,6 +30,7 @@ from app.identity.schemas import (
     EmailIn,
     LoginIn,
     MeOut,
+    MePatch,
     MfaSetupOut,
     RecoveryCodesOut,
     ResetConfirmIn,
@@ -69,6 +70,7 @@ def me_out(auth: Auth) -> MeOut:
         timezone=user.timezone,
         language=user.language,
         support=auth.session.support_admin_id is not None,
+        rebook_reminders=user.rebook_reminders,
     )
 
 
@@ -329,4 +331,14 @@ async def confirm_reset(body: ResetConfirmIn, response: Response, db: Db) -> Non
 @me_router.get("/me")
 async def me(auth: SignedIn) -> MeOut:
     """Works mid-MFA too, so the web app can tell the person what step comes next."""
+    return me_out(auth)
+
+
+@me_router.patch("/me")
+async def update_me(body: MePatch, auth: FullySignedIn, db: Db) -> MeOut:
+    """Customers' email choices. Account security lives under /auth."""
+    if auth.user.role is not Role.consumer:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="You can't do that.")
+    auth.user.rebook_reminders = body.rebook_reminders
+    await db.commit()
     return me_out(auth)

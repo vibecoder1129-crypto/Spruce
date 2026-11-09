@@ -232,6 +232,17 @@ function BookingCard({
           </Button>
         </div>
       )}
+      {!upcoming && (
+        <div>
+          <ButtonLink href={`/b/${b.business_id}/book?service=${b.service_id}&staff=${b.staff_id}`} variant="secondary">
+            Book again
+            <span className="sr-only">
+              {" "}
+              {b.service_name} at {b.business_name}
+            </span>
+          </ButtonLink>
+        </div>
+      )}
       {asking && (
         <div
           role="alertdialog"

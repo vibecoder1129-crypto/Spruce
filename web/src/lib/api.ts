@@ -18,6 +18,7 @@ export type Me = {
   language: string;
   /** A platform admin is helping as this owner. */
   support?: boolean;
+  rebook_reminders?: boolean;
 };
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "suspended";
@@ -65,6 +66,7 @@ export type Service = {
   price_minor: number;
   currency: string;
   active: boolean;
+  rebook_weeks: number;
 };
 
 export type Flag =

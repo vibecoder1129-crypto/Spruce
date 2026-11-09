@@ -117,6 +117,7 @@ class Booking(IdMixin, CreatedMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rebook_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint("ends_at > starts_at", name="ends_after_starts"),

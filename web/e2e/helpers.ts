@@ -187,6 +187,19 @@ async def main(db):
   );
 }
 
+/** Stands in for the clock: the business's bookings finished six weeks ago and were marked done. */
+export function finishBookings(name: string) {
+  apiPython(
+    `from sqlalchemy import text
+async def main(db):
+    await db.execute(text("""UPDATE bookings SET status = 'completed', starts_at = now() - interval '6 weeks 1 hour',
+        ends_at = now() - interval '6 weeks 15 minutes'
+        WHERE business_id = (SELECT id FROM businesses WHERE name = :n)"""), {"n": os.environ["ARG_NAME"]})
+    await db.commit()`,
+    { ARG_NAME: name },
+  );
+}
+
 /** Stands in for a larger venue: `count` more team members at the first location, and a second location. */
 export function growBusiness(name: string, people: string[], secondLocation: string) {
   apiPython(

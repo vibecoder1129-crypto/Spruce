@@ -12,11 +12,15 @@ Minutes = Annotated[int, Field(ge=5, le=480, multiple_of=5, strict=True)]
 Price = Annotated[int, Field(ge=0, le=10_000_000, strict=True)]
 
 
+RebookWeeks = Literal[0, 2, 3, 4, 6, 8, 12, 26]
+
+
 class ServiceIn(Strict):
     name: Short
     category: Category
     duration_minutes: Minutes
     price_minor: Price
+    rebook_weeks: RebookWeeks = 0
 
 
 class ServicePatch(Strict):
@@ -25,6 +29,7 @@ class ServicePatch(Strict):
     duration_minutes: Minutes | None = None
     price_minor: Price | None = None
     active: bool | None = None
+    rebook_weeks: RebookWeeks | None = None
 
 
 class ServiceOut(BaseModel):
@@ -35,6 +40,7 @@ class ServiceOut(BaseModel):
     price_minor: int
     currency: str
     active: bool
+    rebook_weeks: int
 
 
 class StaffPatch(Strict):

@@ -64,6 +64,12 @@ class MeOut(BaseModel):
     language: str
     # True while a platform admin is helping as this owner (slice 8).
     support: bool = False
+    rebook_reminders: bool = True
+
+
+class MePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rebook_reminders: bool
 
 
 class MfaSetupOut(BaseModel):

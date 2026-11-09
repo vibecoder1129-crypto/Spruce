@@ -16,6 +16,8 @@ import { useBusiness } from "../shell";
 const DURATIONS = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
 
 /** "35", "35.5" or "35,50" to cents. Null when it isn't a price. */
+const REBOOK_WEEKS = [0, 2, 3, 4, 6, 8, 12, 26];
+
 function toMinor(text: string): number | null {
   const clean = text.trim().replace(",", ".");
   if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
@@ -204,6 +206,7 @@ function ServicePanel({
       category: String(form.get("category")),
       duration_minutes: Number(form.get("duration")),
       price_minor: price,
+      rebook_weeks: Number(form.get("rebook")),
     };
     void run(
       () =>
@@ -279,6 +282,18 @@ function ServicePanel({
           error={errors.price ?? priceError}
           required
         />
+        <Select
+          label="Remind clients to rebook after"
+          name="rebook"
+          defaultValue={service?.rebook_weeks ?? 0}
+          hint="We email them once, with a link to book the same again. Not if they've already booked."
+        >
+          {REBOOK_WEEKS.map((w) => (
+            <option key={w} value={w}>
+              {w === 0 ? "Don't remind" : `${w} weeks`}
+            </option>
+          ))}
+        </Select>
         <Button type="submit" loading={busy}>
           {service ? "Save changes" : "Add service"}
         </Button>

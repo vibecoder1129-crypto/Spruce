@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    SmallInteger,
     String,
     Uuid,
     text,
@@ -53,6 +54,10 @@ class Service(IdMixin, CreatedMixin, Base):
     price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Weeks until clients usually come back; 0 sends no rebooking reminder (slice 9).
+    rebook_weeks: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
 
     __table_args__ = (
         CheckConstraint(
