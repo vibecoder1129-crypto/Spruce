@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -13,16 +13,20 @@ import {
   addDays,
   api,
   ApiError,
+  asChannel,
   CATEGORIES,
   formatDuration,
   formatPrice,
   parseDate,
   type Availability,
+  type Channel,
   type Me,
   type MyBooking,
   type MyBookings,
   type Storefront,
+  type WaitlistEntry,
 } from "@/lib/api";
+import { policyText } from "@/lib/policy";
 import { cn } from "@/lib/cn";
 
 const STEPS = ["Service", "Professional", "Time", "Confirm"] as const;
@@ -67,6 +71,7 @@ export function BookingFlow() {
   const time = params.get("time");
   const pick = params.get("with");
   const rescheduleId = params.get("reschedule");
+  const channel = asChannel(params.get("from"));
 
   const onMe = useCallback((m: Me | null) => setMe(m), []);
 
@@ -95,7 +100,8 @@ export function BookingFlow() {
     () => (service && store ? store.team.filter((m) => service.staff_ids.includes(m.id)) : []),
     [service, store],
   );
-  const staff = staffParam === ANY ? ANY : (team.find((m) => m.id === staffParam)?.id ?? null);
+  // A link naming someone who left or no longer does this service ("Book again", reminder emails) falls back to anyone.
+  const staff = !staffParam ? null : (team.find((m) => m.id === staffParam)?.id ?? ANY);
   const step = !service ? 0 : !staff ? 1 : !time || !day || !pick ? 2 : 3;
   const here = `/b/${id}/book?${params.toString()}`;
   const done = finished?.at === here ? finished.booking : null;
@@ -201,6 +207,7 @@ export function BookingFlow() {
                       <span className="block font-semibold">{s.name}</span>
                       <span className="text-sm text-muted">
                         {CATEGORIES[s.category] ?? s.category} · {formatDuration(s.duration_minutes)}
+                        {s.needs_patch_test && " · Needs a patch test"}
                       </span>
                     </span>
                     <span className="font-semibold">{formatPrice(s.price_minor, s.currency)}</span>
@@ -218,6 +225,12 @@ export function BookingFlow() {
             value={`${service.name}, ${formatDuration(service.duration_minutes)}`}
             onChange={() => go({ service: null, staff: null, time: null, with: null })}
           />
+          {service.needs_patch_test && (
+            <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">
+              This needs a patch test at {store.name} at least 48 hours before your visit, and within the last 6 months.
+              If you haven&apos;t had one there, contact them to arrange it first.
+            </p>
+          )}
           <h2 id="pick-pro" className="text-xl font-bold">
             Choose a professional
           </h2>
@@ -254,6 +267,9 @@ export function BookingFlow() {
           onTime={(t, who) => go({ date: day, time: t, with: who })}
           onChangeService={() => go({ service: null, staff: null, time: null, with: null })}
           onChangeStaff={() => go({ staff: null, time: null, with: null })}
+          onAnyone={() => go({ staff: ANY, time: null, with: null })}
+          me={me}
+          here={here}
         />
       )}
 
@@ -268,6 +284,7 @@ export function BookingFlow() {
           time={time}
           moving={rescheduleId}
           movingBooking={moving}
+          channel={channel}
           onBack={() => go({ time: null, with: null })}
           onDone={(booking) => setFinished({ booking, at: here })}
           onTaken={(text) => {
@@ -322,7 +339,13 @@ function TimeStep({
   onTime,
   onChangeService,
   onChangeStaff,
+  onAnyone,
+  me,
+  here,
 }: {
+  onAnyone: () => void;
+  me: Me | null | undefined;
+  here: string;
   businessId: string;
   service: Storefront["services"][number];
   staff: string;
@@ -392,12 +415,26 @@ function TimeStep({
         {longDate(day)}. Times are {timezone.replaceAll("_", " ")} time.
       </p>
       <FormError message={failed} />
-      <div aria-live="polite">
+      {/* Only this line is announced, so form errors below aren't read twice. */}
+      <p className="sr-only" aria-live="polite">
+        {slots === null ? "" : times.length === 0 ? "No open times on this day." : `${times.length} open times.`}
+      </p>
+      <div>
         {slots === null && !failed && <p className="text-muted">Finding open times…</p>}
         {slots && times.length === 0 && (
-          <p className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-5 text-muted">
-            No open times on this day. Try another day{staff !== ANY ? " or anyone available" : ""}.
-          </p>
+          <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-5">
+            <p className="text-muted">
+              No open times on this day. Try another day{staff !== ANY ? " or anyone available" : ""}.
+            </p>
+            {staff !== ANY && (
+              <div>
+                <Button variant="secondary" onClick={onAnyone}>
+                  Switch to anyone available
+                </Button>
+              </div>
+            )}
+            {staff === ANY && <Waitlist key={day} serviceId={service.id} day={day} me={me} here={here} />}
+          </div>
         )}
         {times.length > 0 && (
           <div className="flex flex-col gap-4">
@@ -428,6 +465,112 @@ function TimeStep({
   );
 }
 
+/** On a full day, a customer can wait for a time; everyone waiting is emailed when one frees up. */
+function Waitlist({
+  serviceId,
+  day,
+  me,
+  here,
+}: {
+  serviceId: string;
+  day: string;
+  me: Me | null | undefined;
+  here: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [joined, setJoined] = useState<WaitlistEntry | null>(null);
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const done = useRef<HTMLParagraphElement>(null);
+  const joinButton = useRef<HTMLButtonElement>(null);
+  const reopened = useRef(false);
+  useEffect(() => {
+    if (joined) done.current?.focus();
+    else if (!open && reopened.current) joinButton.current?.focus();
+  }, [joined, open]);
+
+  if (me === undefined) return null;
+  if (me === null) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <ButtonLink href={`/login?next=${encodeURIComponent(here)}`} variant="secondary">
+          Log in to join the waitlist
+        </ButtonLink>
+      </div>
+    );
+  }
+  if (me.role !== "consumer") return null;
+  if (joined) {
+    return (
+      <p ref={done} tabIndex={-1} role="status" className="rounded-[var(--radius-control)] bg-mint p-4 font-semibold">
+        You&apos;re on the waitlist for {longDate(joined.date)}. We&apos;ll email you if a time frees up.{" "}
+        <Link href="/bookings" className="text-spruce underline underline-offset-4">
+          See your waitlist
+        </Link>
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <div>
+        <Button ref={joinButton} variant="secondary" onClick={() => setOpen(true)}>
+          Join the waitlist for this day
+        </Button>
+      </div>
+    );
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+    if (!name) return setNameError("Enter your name.");
+    setBusy(true);
+    setError(null);
+    try {
+      setJoined(
+        await api<WaitlistEntry>("/me/waitlist", { method: "POST", body: { service_id: serviceId, date: day, name } }),
+      );
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-3" aria-label="Join the waitlist">
+      <p className="text-sm">
+        If someone cancels on {longDate(day)}, we&apos;ll email you. The time goes to whoever books first.
+      </p>
+      <Field
+        label="Your name"
+        name="name"
+        autoComplete="name"
+        required
+        className="max-w-sm"
+        error={nameError}
+        onChange={() => setNameError(undefined)}
+        autoFocus
+      />
+      <FormError message={error} />
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" disabled={busy}>
+          {busy ? "Joining…" : "Join waitlist"}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            reopened.current = true;
+            setOpen(false);
+          }}
+        >
+          Not now
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function Confirm({
   me,
   here,
@@ -439,6 +582,7 @@ function Confirm({
   time,
   moving,
   movingBooking,
+  channel,
   onBack,
   onDone,
   onTaken,
@@ -453,6 +597,7 @@ function Confirm({
   time: string;
   moving: string | null;
   movingBooking: MyBooking | null;
+  channel: Channel | null;
   onBack: () => void;
   onDone: (b: MyBooking) => void;
   onTaken: (text: string) => void;
@@ -482,6 +627,7 @@ function Confirm({
               name: String(form.get("name") ?? "").trim(),
               phone: String(form.get("phone") ?? "").trim() || null,
               notes: String(form.get("notes") ?? "").trim(),
+              channel,
             },
           });
       onDone(booking);
@@ -506,6 +652,7 @@ function Confirm({
         <Row label="When" value={`${longDate(day)}, ${time} to ${plusMinutes(time, service.duration_minutes)}`} />
         <Row label="Where" value={`${store.name}, ${place?.address_text ?? ""}`} />
         <Row label="Price" value={`${formatPrice(service.price_minor, service.currency)}, paid at the venue`} />
+        <Row label="Cancelling" value={policyText(store.cancel_window_hours)} />
         {movingBooking && (
           <Row
             label="Moving from"

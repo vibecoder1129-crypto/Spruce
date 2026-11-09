@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import email as mail
 from app.audit import audit
+from app.booking import consult, resources, waitlist
 from app.booking.models import Booking, BookingSource, BookingStatus, TimeOff, WeeklyShift
 from app.booking.router import (
     CHANGEABLE,
@@ -71,7 +72,12 @@ async def _public(db: AsyncSession, business_id: uuid.UUID) -> Business:
 
 
 async def _open_times(
-    db: AsyncSession, staff: StaffProfile, zone: str, day: date, minutes: int
+    db: AsyncSession,
+    staff: StaffProfile,
+    zone: str,
+    day: date,
+    minutes: int,
+    room: resources.Fits | None = None,
 ) -> list[str]:
     tz = ZoneInfo(zone)
     shift = await db.scalar(
@@ -118,30 +124,30 @@ async def _open_times(
         start = wall.replace(tzinfo=tz).astimezone(UTC)
         end = start + length
         exists = start.astimezone(tz).replace(tzinfo=None) == wall  # skip times DST skips
-        if exists and start > now and not any(a < end and b > start for a, b in busy):
+        free = not any(a < end and b > start for a, b in busy)
+        if exists and start > now and free and (room is None or room(start, end)):
             times.append(wall.strftime("%H:%M"))
         wall += STEP
     return times
 
 
-@router.get("/marketplace/businesses/{business_id}/availability")
-async def availability(
+async def open_slots(
+    db: AsyncSession,
     business_id: uuid.UUID,
-    db: Db,
     service_id: uuid.UUID,
-    day: Annotated[date, Query(alias="date")],
+    day: date,
     staff_id: uuid.UUID | None = None,
-) -> AvailabilityOut:
-    business = await _public(db, business_id)
+) -> tuple[str, list[Slot]]:
+    """The venue's time zone and every open start for the service that day, by time then person."""
     query = (
         select(StaffProfile)
         .join(StaffService, StaffService.staff_id == StaffProfile.id)
         .join(Service, Service.id == StaffService.service_id)
         .where(
-            StaffProfile.business_id == business.id,
+            StaffProfile.business_id == business_id,
             StaffProfile.active.is_(True),
             Service.id == service_id,
-            Service.business_id == business.id,
+            Service.business_id == business_id,
             Service.active.is_(True),
         )
         .order_by(StaffProfile.created_at)
@@ -153,29 +159,59 @@ async def availability(
     _check_day(day, datetime.now(ZoneInfo(zone)).date())
     slots: list[tuple[str, int, uuid.UUID]] = []
     minutes = (await db.get_one(Service, service_id)).duration_minutes if team else 0
+    rooms: dict[uuid.UUID, resources.Fits | None] = {}
     for order, staff in enumerate(team):
         staff_zone = await _zone(db, staff)
-        for time in await _open_times(db, staff, staff_zone, day, minutes):
+        if staff.location_id not in rooms:
+            tz = ZoneInfo(staff_zone)
+            rooms[staff.location_id] = await resources.checker(
+                db,
+                service_id,
+                staff.location_id,
+                datetime.combine(day, datetime.min.time(), tz),
+                datetime.combine(day + timedelta(days=1), datetime.min.time(), tz),
+            )
+        room = rooms[staff.location_id]
+        for time in await _open_times(db, staff, staff_zone, day, minutes, room):
             slots.append((time, order, staff.id))
     slots.sort()
-    return AvailabilityOut(
-        date=day,
-        timezone=zone,
-        slots=[Slot(staff_id=staff_id, time=time) for time, _, staff_id in slots],
-    )
+    return zone, [Slot(staff_id=who, time=time) for time, _, who in slots]
+
+
+@router.get("/marketplace/businesses/{business_id}/availability")
+async def availability(
+    business_id: uuid.UUID,
+    db: Db,
+    service_id: uuid.UUID,
+    day: Annotated[date, Query(alias="date")],
+    staff_id: uuid.UUID | None = None,
+) -> AvailabilityOut:
+    business = await _public(db, business_id)
+    zone, slots = await open_slots(db, business.id, service_id, day, staff_id)
+    return AvailabilityOut(date=day, timezone=zone, slots=slots)
 
 
 # --- my bookings -----------------------------------------------------------------------------
 
 
-def _can_change(booking: Booking) -> bool:
-    return booking.status in CHANGEABLE and booking.starts_at > utcnow()
+def _can_change(booking: Booking, window_hours: int) -> bool:
+    """Customers can change a booking until the venue's cancellation window starts."""
+    return (
+        booking.status in CHANGEABLE
+        and booking.starts_at - timedelta(hours=window_hours) > utcnow()
+    )
 
 
 async def _mine(db: AsyncSession, booking: Booking) -> MyBooking:
     row = (
         await db.execute(
-            select(Business.name, Location.name, Location.address_text, Location.timezone)
+            select(
+                Business.name,
+                Location.name,
+                Location.address_text,
+                Location.timezone,
+                Business.cancel_window_hours,
+            )
             .join(Location, Location.business_id == Business.id)
             .where(Business.id == booking.business_id, Location.id == booking.location_id)
         )
@@ -199,7 +235,9 @@ async def _mine(db: AsyncSession, booking: Booking) -> MyBooking:
         status=booking.status,
         price_minor=booking.price_minor,
         currency=booking.currency,
-        can_change=_can_change(booking),
+        can_change=_can_change(booking, row[4]),
+        cancel_window_hours=row[4],
+        form=await consult.form_state(db, booking, service),
     )
 
 
@@ -303,6 +341,8 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
     staff, service, starts_at, ends_at = await _place(
         db, business.id, body.staff_id, body.service_id, body.start
     )
+    await consult.check_patch_test(db, auth.user.id, service, starts_at)
+    resource_id = await resources.pick(db, service.id, staff.location_id, starts_at, ends_at)
     guest = {"name": body.name, **({"phone": body.phone} if body.phone else {})}
     booking = Booking(
         business_id=business.id,
@@ -315,6 +355,8 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
         ends_at=ends_at,
         status=BookingStatus.confirmed,
         source=BookingSource.consumer,
+        channel=body.channel,
+        resource_id=resource_id,
         notes=body.notes,
         price_minor=service.price_minor,
         currency=service.currency,
@@ -325,6 +367,7 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
     audit(
         db, actor=auth.user.id, action="booking.create", target_type="booking", target_id=booking.id
     )
+    await waitlist.booked(db, booking)
     await db.commit()
     await notify(db, booking, "confirmed")
     return await _mine(db, booking)
@@ -338,8 +381,16 @@ async def _own(db: AsyncSession, auth: Auth, booking_id: uuid.UUID) -> Booking:
     )
     if booking is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_YOURS)
-    if not _can_change(booking):
+    window = await db.scalar(
+        select(Business.cancel_window_hours).where(Business.id == booking.business_id)
+    )
+    if booking.status not in CHANGEABLE or booking.starts_at <= utcnow():
         raise HTTPException(status.HTTP_409_CONFLICT, detail="This booking can't be changed now.")
+    if not _can_change(booking, window or 0):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Changes within {window} hours of the start need you to contact the venue.",
+        )
     return booking
 
 
@@ -353,6 +404,7 @@ async def cancel_own(db: AsyncSession, auth: Auth, booking_id: uuid.UUID) -> MyB
     )
     await db.commit()
     await notify(db, booking, "cancelled")
+    await waitlist.offer(db, booking.business_id, booking.staff_id, booking.starts_at)
     return await _mine(db, booking)
 
 
@@ -361,8 +413,13 @@ async def reschedule(
     booking_id: uuid.UUID, body: RescheduleIn, auth: Customer, db: Db
 ) -> MyBooking:
     booking = await _own(db, auth, booking_id)
-    staff, _, starts_at, ends_at = await _place(
+    freed = (booking.staff_id, booking.starts_at)
+    staff, service, starts_at, ends_at = await _place(
         db, booking.business_id, body.staff_id or booking.staff_id, booking.service_id, body.start
+    )
+    await consult.check_patch_test(db, auth.user.id, service, starts_at)
+    booking.resource_id = await resources.pick(
+        db, booking.service_id, staff.location_id, starts_at, ends_at, booking
     )
     booking.staff_id, booking.location_id = staff.id, staff.location_id
     booking.starts_at, booking.ends_at = starts_at, ends_at
@@ -372,4 +429,5 @@ async def reschedule(
     await _flush_booking(db)
     await db.commit()
     await notify(db, booking, "moved")
+    await waitlist.offer(db, booking.business_id, *freed)
     return await _mine(db, booking)

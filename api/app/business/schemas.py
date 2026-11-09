@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
@@ -22,9 +22,13 @@ class BusinessIn(Strict):
     category: Category
 
 
+CancelWindow = Literal[0, 2, 6, 12, 24, 48]
+
+
 class BusinessPatch(Strict):
     name: Name | None = None
     category: Category | None = None
+    cancel_window_hours: CancelWindow | None = None
 
 
 class BusinessOut(BaseModel):
@@ -35,6 +39,8 @@ class BusinessOut(BaseModel):
     rejection_reason: RejectReason | None
     rejection_note: str | None
     submitted_at: datetime | None
+    cancel_window_hours: int
+    support_until: datetime | None
 
 
 class LocationIn(Strict):
@@ -80,6 +86,7 @@ class StaffOut(BaseModel):
     has_login: bool
     active: bool = True
     service_ids: list[uuid.UUID] = []
+    commission_percent: int = 0
 
 
 class CountryOut(BaseModel):
@@ -107,3 +114,19 @@ class AdminBusinessOut(BusinessOut):
 class AdminBusinessDetail(BusinessOut):
     locations: list[LocationOut]
     staff: list[StaffOut]
+
+
+class SupportIn(Strict):
+    hours: Literal[0, 24, 72]
+
+
+class SupportAction(BaseModel):
+    at: datetime
+    method: str
+    path: str
+    by: str  # the support person's email, so the owner knows who
+
+
+class SupportOut(BaseModel):
+    until: datetime | None
+    log: list[SupportAction]

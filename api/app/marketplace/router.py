@@ -226,10 +226,12 @@ async def storefront(business_id: uuid.UUID, db: Db) -> StorefrontOut:
                 price_minor=s.price_minor,
                 currency=s.currency,
                 staff_ids=sorted(who.get(s.id, []), key=order.__getitem__),
+                needs_patch_test=s.needs_patch_test,
             )
             for s in services
         ],
         team=[StoreMember(id=m.id, display_name=m.display_name, title=m.title) for m in team],
+        cancel_window_hours=business.cancel_window_hours,
     )
 
 

@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { PublicHeader } from "@/components/public-header";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, ApiError, formatPrice, nextStep, parseDate, type Me, type MyBooking, type MyBookings } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  formatPrice,
+  nextStep,
+  parseDate,
+  type Me,
+  type MyBooking,
+  type MyBookings,
+  type WaitlistEntry,
+} from "@/lib/api";
+import { policyText } from "@/lib/policy";
 
 function when(booking: MyBooking): string {
   const [d, t] = booking.start.split("T");
@@ -15,14 +26,34 @@ function when(booking: MyBooking): string {
   return `${date.format(parseDate(d))}, ${t} to ${booking.end.split("T")[1]}`;
 }
 
+/** "Tuesday 10 November at 09:00": the deadline for a visit's form. */
+function startsAt(booking: MyBooking): string {
+  const [d, t] = booking.start.split("T");
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(parseDate(d));
+  return `${day} at ${t}`;
+}
+
 /** Feature list 2 (Home hub, My Bookings): a customer's upcoming and past bookings. */
 export function MyBookingsPage() {
   const router = useRouter();
   const [data, setData] = useState<MyBookings | null>(null);
+  const [waiting, setWaiting] = useState<WaitlistEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  // What the person acted on may have gone, so keep keyboard focus on the result.
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus();
+  }, [notice]);
 
   const load = useCallback(() => {
+    api<WaitlistEntry[]>("/me/waitlist")
+      .then(setWaiting)
+      .catch((e: unknown) => {
+        // A signed-out visit is handled by the bookings call below.
+        if (!(e instanceof ApiError && e.status === 401))
+          setError("Your waitlist couldn't be loaded. Refresh to try again.");
+      });
     api<MyBookings>("/me/bookings")
       .then(setData)
       .catch((e: unknown) => {
@@ -56,7 +87,12 @@ export function MyBookingsPage() {
         </div>
         <FormError message={error} />
         {notice && (
-          <p role="status" className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm">
+          <p
+            ref={noticeRef}
+            tabIndex={-1}
+            role="status"
+            className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm"
+          >
             {notice}
           </p>
         )}
@@ -80,6 +116,7 @@ export function MyBookingsPage() {
                     <BookingCard
                       key={b.id}
                       booking={b}
+                      upcoming
                       onCancelled={() => {
                         setNotice(`Cancelled your ${b.service_name} at ${b.business_name}. We've emailed you.`);
                         load();
@@ -90,6 +127,26 @@ export function MyBookingsPage() {
                 </ul>
               )}
             </section>
+            {waiting.length > 0 && (
+              <section aria-labelledby="waitlist" className="flex flex-col gap-3">
+                <h2 id="waitlist" className="text-xl font-bold">
+                  Waitlist
+                </h2>
+                <ul className="flex flex-col gap-3">
+                  {waiting.map((w) => (
+                    <WaitRow
+                      key={w.id}
+                      entry={w}
+                      onLeft={() => {
+                        setNotice(`You've left the waitlist for ${w.service_name} at ${w.business_name}.`);
+                        load();
+                      }}
+                      onError={setError}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
             {data.past.length > 0 && (
               <section aria-labelledby="past" className="flex flex-col gap-3">
                 <h2 id="past" className="text-xl font-bold">
@@ -111,16 +168,19 @@ export function MyBookingsPage() {
 
 function BookingCard({
   booking: b,
+  upcoming = false,
   onCancelled,
   onError,
 }: {
   booking: MyBooking;
+  upcoming?: boolean;
   onCancelled: () => void;
   onError: (text: string | null) => void;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const cancelled = b.status === "cancelled";
+  const locked = upcoming && !b.can_change && (b.status === "confirmed" || b.status === "pending");
 
   async function cancel() {
     setBusy(true);
@@ -150,6 +210,30 @@ function BookingCard({
         <br />
         {b.address} · {b.timezone.replaceAll("_", " ")} time
       </p>
+      {upcoming && b.form !== "none" && (b.status === "confirmed" || b.status === "pending") && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line bg-ground px-4 py-3">
+          <p className="text-sm">
+            {b.form === "to_fill"
+              ? `${b.business_name} asks you to fill in a short form before your visit, ${startsAt(b)}.`
+              : "Thanks, the venue has your answers."}
+          </p>
+          <ButtonLink href={`/bookings/${b.id}/form`} variant={b.form === "to_fill" ? "primary" : "secondary"}>
+            {b.form === "to_fill" ? "Fill in the form" : "Change your answers"}
+            <span className="sr-only">
+              {" "}
+              for {b.service_name} at {b.business_name}
+            </span>
+          </ButtonLink>
+        </div>
+      )}
+      {upcoming && b.can_change && <p className="text-sm">{policyText(b.cancel_window_hours)}</p>}
+      {locked && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">
+          {b.cancel_window_hours > 0
+            ? `It's less than ${b.cancel_window_hours} hours to the start, so this booking can't be changed online. To cancel or change it, contact ${b.business_name}.`
+            : `To cancel or change this booking now, contact ${b.business_name}.`}
+        </p>
+      )}
       {b.can_change && !asking && (
         <div className="flex flex-wrap gap-2">
           <ButtonLink
@@ -171,6 +255,17 @@ function BookingCard({
           </Button>
         </div>
       )}
+      {!upcoming && (
+        <div>
+          <ButtonLink href={`/b/${b.business_id}/book?service=${b.service_id}&staff=${b.staff_id}`}>
+            Book again
+            <span className="sr-only">
+              {" "}
+              {b.service_name} at {b.business_name}
+            </span>
+          </ButtonLink>
+        </div>
+      )}
       {asking && (
         <div
           role="alertdialog"
@@ -190,6 +285,56 @@ function BookingCard({
           </div>
         </div>
       )}
+    </li>
+  );
+}
+
+function WaitRow({
+  entry: w,
+  onLeft,
+  onError,
+}: {
+  entry: WaitlistEntry;
+  onLeft: () => void;
+  onError: (text: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function leave() {
+    setBusy(true);
+    onError(null);
+    try {
+      await api(`/me/waitlist/${w.id}`, { method: "DELETE" });
+      onLeft();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "That didn't work.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4">
+      <div>
+        <p className="font-semibold">
+          {w.service_name} at {w.business_name}
+        </p>
+        <p className="text-sm text-muted">
+          {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(
+            parseDate(w.date),
+          )}
+          {w.notified ? ". A time opened up and we emailed you." : ". We'll email you if a time frees up."}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {w.notified && (
+          <ButtonLink href={`/b/${w.business_id}/book?service=${w.service_id}&staff=any&date=${w.date}`}>
+            See times
+          </ButtonLink>
+        )}
+        <Button variant="secondary" loading={busy} onClick={leave}>
+          Leave<span className="sr-only"> the waitlist for {w.service_name}</span>
+        </Button>
+      </div>
     </li>
   );
 }

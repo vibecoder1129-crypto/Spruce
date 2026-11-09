@@ -33,6 +33,7 @@ test("a customer signs up, lands on their bookings, sees their account and logs 
   const email = uniqueEmail("ana");
 
   await page.goto("/signup");
+  await expect(page.getByText(/we may email you once when you.re usually due back/)).toBeVisible();
   await expectAccessible(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);

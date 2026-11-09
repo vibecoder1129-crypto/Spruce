@@ -28,7 +28,13 @@ def _issue_tokens(session: Session, response: Response, now: datetime) -> None:
 
 
 async def start_session(
-    db: AsyncSession, user: User, response: Response, *, mfa_verified: bool = False
+    db: AsyncSession,
+    user: User,
+    response: Response,
+    *,
+    mfa_verified: bool = False,
+    support_admin_id: uuid.UUID | None = None,
+    ends: datetime | None = None,
 ) -> Session:
     now = utcnow()
     staff_id = None
@@ -38,8 +44,9 @@ async def start_session(
         user_id=user.id,
         # Revoking one of this employee's permissions ends every session carrying this id.
         staff_id=staff_id,
-        expires_at=now + timedelta(seconds=get_settings().session_ttl_seconds),
+        expires_at=ends or now + timedelta(seconds=get_settings().session_ttl_seconds),
         mfa_verified=mfa_verified or user.role not in MFA_REQUIRED_ROLES,
+        support_admin_id=support_admin_id,
     )
     _issue_tokens(session, response, now)
     db.add(session)

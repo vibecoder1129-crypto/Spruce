@@ -45,9 +45,9 @@ async def accept(staff: AsyncClient, token: str) -> None:
     assert response.status_code == 201, response.text
 
 
-async def team(client: AsyncClient) -> tuple[str, str]:
+async def team(client: AsyncClient, email: str = "owner@example.lv") -> tuple[str, str]:
     """An owner with a business and one staff member. Returns (business_id, staff_id)."""
-    await owner(client)
+    await owner(client, email)
     business_id = await onboarded(client, submit=False)
     return business_id, await first_staff(client, business_id)
 

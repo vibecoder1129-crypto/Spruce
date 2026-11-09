@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { FormError } from "@/components/auth-shell";
@@ -261,6 +262,8 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
         </p>
       )}
 
+      <SupportAccess summary={summary} />
+
       {pending && !rejecting && (
         <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row">
           <Button size="lg" loading={busy === "approve"} onClick={() => act("approve")}>
@@ -367,5 +370,47 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
         </form>
       )}
     </section>
+  );
+}
+
+/** Slice 8: with the owner's say-so, open their dashboard to help. The API logs every change. */
+function SupportAccess({ summary }: { summary: AdminBusiness }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const until = summary.support_until ? new Date(summary.support_until) : null;
+  // Read once on mount: "now" changes every render, and the API decides anyway.
+  const [now] = useState(() => Date.now());
+  const allowed = until !== null && until.getTime() > now;
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-5">
+      <h3 className="text-sm font-semibold">Support access</h3>
+      {allowed ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm">The owner allows support until {when.format(until)}.</p>
+          <Button
+            variant="secondary"
+            loading={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await api(`/admin/businesses/${summary.id}/support`, { method: "POST" });
+                router.push("/dashboard");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "That didn't work.");
+                setBusy(false);
+              }
+            }}
+          >
+            Open as support
+          </Button>
+          <FormError message={error} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted">Off. The owner can turn it on in their Settings.</p>
+      )}
+    </div>
   );
 }

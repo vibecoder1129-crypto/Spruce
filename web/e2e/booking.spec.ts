@@ -1,10 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   addService,
   approveBusiness,
   createOwner,
   expectAccessible,
+  martaEveryDay,
   ownerWithBusiness,
   PASSWORD,
   uniqueEmail,
@@ -12,21 +13,6 @@ import {
 
 // The venue is in Riga; the owner's board and the customer's "tomorrow" agree on the date.
 test.use({ timezoneId: "Europe/Riga" });
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-/** Marta works every day 09:00 to 17:00, this week and next, so tomorrow always has times. */
-async function martaEveryDay(page: Page) {
-  // Wait for each week's saved shifts to load, so they don't replace what's picked next.
-  const loaded = () => page.waitForResponse((r) => r.url().includes("/shifts?week=") && r.request().method() === "GET");
-  await Promise.all([loaded(), page.goto("/dashboard/team/shifts")]);
-  for (const week of ["This week", "Next week"]) {
-    if (week === "Next week") await Promise.all([loaded(), page.getByRole("button", { name: week }).click()]);
-    for (const day of DAYS) await page.getByLabel(`Marta, ${day}, starts`).selectOption("09:00");
-    await page.getByRole("button", { name: "Save week" }).click();
-    await expect(page.getByText("Unsaved changes")).toBeHidden();
-  }
-}
 
 test("a customer books, signing in at Confirm, then moves and cancels it; the owner sees it", async ({
   page,
@@ -48,7 +34,8 @@ test("a customer books, signing in at Confirm, then moves and cancels it; the ow
   // The owner's link to share.
   await page.goto("/dashboard");
   const share = page.getByRole("region", { name: "Your booking link" });
-  await expect(share.getByLabel("Link")).toHaveValue(/\/b\/[0-9a-f-]+\/book$/);
+  await expect(share.getByLabel("Link")).toHaveValue(/\/b\/[0-9a-f-]+\/book\?from=link$/);
+  await share.getByText("Website", { exact: true }).click();
   await expect(share.getByLabel("Button for your website")).toHaveValue(new RegExp(`Book at ${name}</a>$`));
   await expectAccessible(page);
 
@@ -67,7 +54,7 @@ test("a customer books, signing in at Confirm, then moves and cancels it; the ow
     timezoneId: "Europe/Riga",
   });
   const c = await customer.newPage();
-  await c.goto((await share.getByLabel("Link").inputValue()).replace(/\/book$/, ""));
+  await c.goto((await share.getByLabel("Link").inputValue()).replace(/\/book\?from=website$/, ""));
   await c.getByRole("link", { name: "Book Haircut" }).click();
   await expect(c.getByRole("heading", { name: "Choose a professional" })).toBeVisible();
   await expectAccessible(c);
