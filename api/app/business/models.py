@@ -77,6 +77,8 @@ class Business(IdMixin, CreatedMixin, Base):
     cancel_window_hours: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, default=0, server_default="0"
     )
+    # Support access (slice 8): while in the future, a platform admin may help as the owner.
+    support_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(
@@ -136,3 +138,7 @@ class StaffProfile(IdMixin, CreatedMixin, Base):
     title: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     # Removing a staff member archives them, so their history stays.
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # The share of each service amount they earn, kept on each sale at checkout (slice 14).
+    commission_percent: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )

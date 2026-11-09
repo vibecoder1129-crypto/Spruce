@@ -226,6 +226,7 @@ async def storefront(business_id: uuid.UUID, db: Db) -> StorefrontOut:
                 price_minor=s.price_minor,
                 currency=s.currency,
                 staff_ids=sorted(who.get(s.id, []), key=order.__getitem__),
+                needs_patch_test=s.needs_patch_test,
             )
             for s in services
         ],

@@ -1,4 +1,5 @@
-"""Operator commands. `python -m app.cli create-admin` makes a platform admin.
+"""Operator commands. `python -m app.cli create-admin` makes a platform admin;
+`send-reminders` sends the day's rebooking reminders.
 
 Admin delegation from inside the app arrives in slice 8; until then this is the only way.
 """
@@ -12,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
+from app.booking.reminders import send_reminders
 from app.crypto import email_index, encrypt, hash_password, normalize_email
 from app.db import get_sessionmaker
 from app.identity.models import Role, User
@@ -47,7 +49,17 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     create = sub.add_parser("create-admin", help="Create a platform admin")
     create.add_argument("--email", required=True)
+    sub.add_parser("send-reminders", help="Send today's rebooking reminders (run daily)")
     args = parser.parse_args()
+    loop = asyncio.SelectorEventLoop if sys.platform == "win32" else None
+    if args.command == "send-reminders":
+
+        async def remind() -> None:
+            async with get_sessionmaker()() as db:
+                print(f"Sent {await send_reminders(db)} rebooking reminders.")
+
+        asyncio.run(remind(), loop_factory=loop)
+        return
     password = getpass.getpass("Password (12+ characters): ")
     if len(password) < 12:
         raise SystemExit("The password needs at least 12 characters.")
@@ -58,7 +70,7 @@ def main() -> None:
         print("Admin created. They set up two-step verification at first login.")
 
     # psycopg's async mode can't use Windows' default Proactor loop.
-    asyncio.run(run(), loop_factory=asyncio.SelectorEventLoop if sys.platform == "win32" else None)
+    asyncio.run(run(), loop_factory=loop)
 
 
 if __name__ == "__main__":

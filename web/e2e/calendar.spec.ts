@@ -3,16 +3,15 @@ import { expect, test, type Page } from "@playwright/test";
 import { addService, expectAccessible, inviteToken, ownerWithBusiness, PASSWORD, uniqueEmail } from "./helpers";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const ROOMY_ROW = 30; // px per 15 minutes
+const ROW = 30; // px per 15 minutes
 
 /** Clicks an empty slot in a staff member's column, as an owner would with a mouse. */
 async function clickSlot(page: Page, name: string, hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);
-  const y = ((h * 60 + m - 8 * 60) / 15) * ROOMY_ROW + 5;
-  await page
-    .getByRole("region", { name })
-    .locator(":scope > div")
-    .click({ position: { x: 30, y } });
+  const column = page.getByRole("region", { name }).locator(":scope > div");
+  const opens = Number(await column.getAttribute("data-opens")); // the board starts at the day's first shift
+  const y = ((h * 60 + m - opens) / 15) * ROW + 5;
+  await column.click({ position: { x: 30, y } });
 }
 
 test("an owner plans shifts, blocks time, books a walk-in from the board and cancels it", async ({ page, browser }) => {
@@ -80,8 +79,15 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await expectAccessible(page);
   await form.getByRole("button", { name: "Book" }).click();
   await expect(page.getByRole("status")).toHaveText("Booked Liga Ozola at 10:00.");
-  const appointment = board.getByRole("button", { name: "10:00 Liga Ozola Haircut (until 10:45)" });
+  const appointment = board.getByRole("button", {
+    name: "10:00 Liga Ozola Haircut · Added by the venue (until 10:45)",
+  });
   await expect(appointment).toBeVisible();
+  // The day at a glance, with a colour key in words.
+  const summary = page.getByRole("region", { name: "Day summary" });
+  await expect(summary.getByRole("definition").first()).toHaveText("1");
+  await expect(summary).toContainText("expected takings");
+  await expect(summary.getByRole("list", { name: "Colour key" })).toContainText("Added by the venue");
 
   // The same time can't be booked twice, even from the keyboard path that skips the board.
   await page.getByRole("button", { name: "New appointment" }).click();
@@ -93,11 +99,31 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await expect(form.getByRole("alert")).toHaveText("That time was just taken.");
   await form.getByRole("button", { name: "Close" }).click();
 
+  // Drag it an hour later. The API re-checks the move like any other.
+  const column = board.locator(":scope > div");
+  const opens = Number(await column.getAttribute("data-opens"));
+  await appointment.dragTo(column, {
+    sourcePosition: { x: 20, y: 5 },
+    targetPosition: { x: 30, y: ((11 * 60 - opens) / 15) * ROW + 5 },
+  });
+  await expect(page.getByRole("status")).toHaveText("Moved Liga Ozola to 11:00 with Marta.");
+  const moved = board.getByRole("button", { name: "11:00 Liga Ozola Haircut · Added by the venue (until 11:45)" });
+  await expect(moved).toBeVisible();
+
   // List view
   await page.getByRole("button", { name: "List" }).click();
   await expect(page.getByRole("table")).toContainText("Liga Ozola");
   await expectAccessible(page);
-  await page.getByRole("button", { name: "Board" }).click();
+
+  // Week view: Marta's week, and an appointment there opens on its day.
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  const week = page.getByRole("region", { name: "Marta's week" });
+  await expect(week.getByRole("listitem").filter({ hasText: "Liga Ozola" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next week" })).toBeVisible();
+  await expectAccessible(page);
+  await week.getByRole("button", { name: /11:00 Liga Ozola/ }).click();
+  await expect(page.getByRole("complementary").getByRole("heading", { name: "Liga Ozola" })).toBeVisible();
+  await page.getByRole("complementary").getByRole("button", { name: "Close" }).click();
 
   // Marta sees her own column only.
   await page.goto("/dashboard/team");
@@ -123,7 +149,7 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
 
   // Open the appointment and cancel it: the slot is free again.
   await page.goto("/dashboard/calendar");
-  await appointment.click();
+  await moved.click();
   const detail = page.getByRole("complementary");
   await expect(detail.getByRole("heading", { name: "Liga Ozola" })).toBeVisible();
   await expect(detail).toContainText("+371 2000 0000");
@@ -131,5 +157,5 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   await detail.getByRole("button", { name: "Cancel appointment" }).click();
   await detail.getByRole("button", { name: "Yes, cancel it" }).click();
   await expect(page.getByRole("status")).toContainText("Cancelled Liga Ozola's appointment");
-  await expect(appointment).toHaveCount(0);
+  await expect(moved).toHaveCount(0);
 });

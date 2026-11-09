@@ -8,10 +8,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
+from app.booking.checkout import router as checkout_router
 from app.booking.customer import router as customer_router
+from app.booking.forms import router as booking_forms_router
+from app.booking.reminders import router as reminders_router
 from app.booking.router import router as booking_router
+from app.booking.waitlist import router as waitlist_router
 from app.business.router import admin_router as business_admin_router
 from app.business.router import router as business_router
+from app.business.support import admin_router as support_admin_router
+from app.business.support import router as support_router
 from app.clients.router import router as clients_router
 from app.config import get_settings
 from app.csrf import CSRFMiddleware
@@ -21,6 +27,8 @@ from app.identity.router import router as auth_router
 from app.logging import configure_logging
 from app.marketplace.router import router as marketplace_router
 from app.security import SecurityHeadersMiddleware
+from app.team.forms import router as forms_router
+from app.team.resources import router as resources_router
 from app.team.router import router as team_router
 
 log = logging.getLogger("spruce")
@@ -64,8 +72,16 @@ def create_app() -> FastAPI:
     app.include_router(business_router)
     app.include_router(business_admin_router)
     app.include_router(team_router)
+    app.include_router(resources_router)
+    app.include_router(forms_router)
     app.include_router(booking_router)
     app.include_router(customer_router)
+    app.include_router(booking_forms_router)
+    app.include_router(checkout_router)
+    app.include_router(waitlist_router)
+    app.include_router(reminders_router)
+    app.include_router(support_router)
+    app.include_router(support_admin_router)
     app.include_router(marketplace_router)
     app.include_router(clients_router)
     return app

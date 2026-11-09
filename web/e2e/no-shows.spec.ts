@@ -35,7 +35,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
   await expect(page.getByText(/Customers will read: Cancel or change online up to 24 hours/)).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "Save policy" }).click();
-  await expect(page.getByRole("status")).toHaveText(/^Saved\./);
+  await expect(page.getByRole("form", { name: "Cancellation policy" }).getByRole("status")).toHaveText(/^Saved\./);
 
   // A customer reads it on the venue page and at Confirm, then books two days ahead.
   const email = uniqueEmail("customer");
@@ -69,7 +69,17 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
   await expect(c.getByRole("definition").filter({ hasText: policy })).toBeVisible();
   await c.getByLabel("Your name").fill("Ana Ozola");
   await expectAccessible(c);
+  // The owner has that day open on the calendar, and the booking arrives on its own.
+  const riga = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Riga" }).format(new Date());
+  const inTwoDays = new Date(`${riga}T12:00:00Z`);
+  inTwoDays.setUTCDate(inTwoDays.getUTCDate() + 2);
+  await page.goto("/dashboard/calendar");
+  await page.getByLabel("Date").fill(inTwoDays.toISOString().slice(0, 10));
+  await expect(page.getByRole("region", { name: "Day summary" }).getByRole("definition").first()).toHaveText("0");
   await c.getByRole("button", { name: "Confirm booking" }).click();
+  await expect(c.getByRole("heading", { name: /You're booked/ })).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByRole("status")).toHaveText("New online booking: 09:00 Ana Ozola.");
   await c.getByRole("link", { name: "See your bookings" }).click();
   const upcoming = c.getByRole("region", { name: "Upcoming" });
   await expect(upcoming).toContainText(policy);
@@ -90,7 +100,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
     .getByRole("row", { name: /Ana Ozola/ })
     .getByRole("button")
     .click();
-  await expect(page.getByRole("button", { name: "Mark as done" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "No-show", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Marked Ana Ozola as a no-show.");
@@ -98,8 +108,8 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
     .getByRole("row", { name: /Ana Ozola/ })
     .getByRole("button")
     .click();
-  await expect(page.getByText("No-show", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Mark as done" })).toHaveCount(0);
+  await expect(page.getByRole("definition").filter({ hasText: /^No-show$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check out" })).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -107,5 +117,5 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
 async function businessId(page: Page): Promise<string> {
   await page.goto("/dashboard");
   const link = await page.getByRole("region", { name: "Your booking link" }).getByLabel("Link").inputValue();
-  return link.match(/\/b\/([0-9a-f-]+)\/book$/)![1];
+  return link.match(/\/b\/([0-9a-f-]+)\/book/)![1];
 }

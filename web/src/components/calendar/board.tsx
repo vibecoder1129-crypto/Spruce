@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -10,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import {
   addDays,
   api,
+  ApiError,
   clock,
   dayAt,
   formatDuration,
@@ -21,21 +31,29 @@ import {
   type Booking,
   type BookingDetail,
   type DayBoard as Board,
+  type PaymentMethod,
   type TimeOff,
+  type VisitForm,
+  type Waiting,
+  type WeekBoard,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+
+import { initials, staffColors, type StaffColor } from "./colors";
 import { useFieldErrors } from "@/lib/form-errors";
 
-// HLD 4.5: a staff day board from 08:00 to 20:00 in 15-minute slots.
+// HLD 4.5: a staff day board in 15-minute slots. Forms offer 08:00 to 20:00; the board itself
+// shows only the hours someone works or is booked that day.
 const OPEN = 8 * 60;
 const CLOSE = 20 * 60;
 const STEP = 15;
 const ROWS = (CLOSE - OPEN) / STEP;
-const ROW_HEIGHT = { compact: 18, roomy: 30 } as const;
+const ROW = 30;
 const QUARTERS = Array.from({ length: ROWS + 1 }, (_, i) => clock(OPEN + i * STEP));
+const LIVE = new Set(["pending", "confirmed", "completed"]);
+const POLL_MS = 30_000; // new online bookings appear without a refresh
 
-type Size = keyof typeof ROW_HEIGHT;
-type View = "board" | "list";
+type View = "board" | "week" | "list";
 type Pick =
   | { kind: "booking"; id: string }
   | { kind: "time-off"; block: TimeOff }
@@ -60,13 +78,14 @@ export function DayBoard({ businessId }: { businessId: string }) {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [view, setView] = useState<View>("board");
-  const [size, setSize] = useState<Size>("roomy");
-  const [who, setWho] = useState("all");
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [person, setPerson] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pick, setPick] = useState<Pick | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
 
   const fetchBoard = useCallback(() => {
     const query = new URLSearchParams({ date });
@@ -74,12 +93,81 @@ export function DayBoard({ businessId }: { businessId: string }) {
     return api<Board>(`/businesses/${businessId}/calendar?${query}`);
   }, [businessId, date, locationId]);
   const load = async () => setBoard(await fetchBoard());
+  const [refreshed, setRefreshed] = useState(0);
+  const shownBoard = useRef<Board | null>(null);
+  useEffect(() => {
+    shownBoard.current = board;
+  }, [board]);
 
   useEffect(() => {
     fetchBoard()
       .then(setBoard)
       .catch((e: unknown) => setError(message(e)));
   }, [fetchBoard]);
+
+  // Who is waiting for a time that day. Refreshed with the board; staff without the calendar get none.
+  useEffect(() => {
+    api<Waiting[]>(`/businesses/${businessId}/waitlist?date=${date}`)
+      .then(setWaiting)
+      .catch(() => setWaiting([]));
+  }, [businessId, date, refreshed]);
+
+  // Live updates: refetch while the tab is visible, and say when an online booking arrives.
+  useEffect(() => {
+    let live = true;
+    async function poll() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const next = await fetchBoard();
+        if (!live) return;
+        const prev = shownBoard.current;
+        if (prev && prev.date === next.date && prev.location_id === next.location_id) {
+          const seen = new Set(prev.bookings.map((b) => b.id));
+          const fresh = next.bookings.filter((b) => !seen.has(b.id) && b.source === "consumer");
+          if (fresh.length === 1) {
+            const b = fresh[0];
+            setNotice(`New online booking: ${clock(minutesAt(b.starts_at, next.timezone))} ${b.client_name}.`);
+          } else if (fresh.length > 1) {
+            setNotice(`${fresh.length} new online bookings.`);
+          }
+        }
+        setBoard(next);
+        setRefreshed((n) => n + 1);
+      } catch {
+        // A missed refresh is retried on the next tick.
+      }
+    }
+    const timer = setInterval(poll, POLL_MS);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [fetchBoard]);
+
+  /** Drag and drop on the board. The API re-checks the shift, blocked time and overlaps. */
+  async function move(id: string, staffId: string, minutes: number) {
+    const booking = board?.bookings.find((b) => b.id === id);
+    if (!booking || !board) return;
+    const time = clock(minutes);
+    if (staffId === booking.staff_id && time === clock(minutesAt(booking.starts_at, board.timezone))) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/bookings/${id}`, { method: "PATCH", body: { start: `${board.date}T${time}`, staff_id: staffId } });
+      const person = board.staff.find((s) => s.id === staffId)?.display_name ?? "";
+      await changed(`Moved ${booking.client_name} to ${time} with ${person}.`);
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+
+  function openDay(day: string, bookingId?: string) {
+    setDate(day);
+    setView("board");
+    setPick(bookingId ? { kind: "booking", id: bookingId } : null);
+  }
 
   async function changed(text: string) {
     setPick(null);
@@ -88,12 +176,16 @@ export function DayBoard({ businessId }: { businessId: string }) {
   }
 
   const tz = board?.timezone ?? "UTC";
-  const columns = board?.staff.filter((s) => who === "all" || s.id === who) ?? [];
+  const columns = board?.staff.filter((s) => !hidden.includes(s.id)) ?? [];
+  const colors = staffColors(board?.staff ?? []);
   const needle = search.trim().toLowerCase();
   const matches = (b: Booking) =>
     !needle || b.client_name.toLowerCase().includes(needle) || b.service_name.toLowerCase().includes(needle);
   const shown = board?.bookings.filter((b) => matches(b) && columns.some((c) => c.id === b.staff_id)) ?? [];
   const canBook = (board?.can_book_staff_ids.length ?? 0) > 0;
+  const weekOf = person ?? columns[0]?.id ?? board?.staff[0]?.id ?? null;
+  const monday = addDays(date, -((parseDate(date).getDay() + 6) % 7));
+  const span = view === "week" ? 7 : 1;
   const firstBookable = board?.can_book_staff_ids[0] ?? "";
 
   return (
@@ -101,13 +193,32 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="mt-1 text-muted">{longDate(date)}</p>
+          <p className="mt-1 text-lg font-semibold text-spruce">
+            {view === "week" ? `Week of ${longDate(monday)}` : longDate(date)}
+          </p>
         </div>
+        {board && board.locations.length > 1 && (
+          <Chips
+            label="Location"
+            items={board.locations.map((l) => ({ id: l.id, name: l.name }))}
+            isOn={(id) => id === board.location_id}
+            onPick={(id) => {
+              setHidden([]);
+              setPerson(null);
+              setPick(null);
+              setLocationId(id);
+            }}
+            icon="pin"
+            compact
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           {board?.can_block_time && (
             <Button
               variant="secondary"
-              onClick={() => setPick({ kind: "block", staffId: board.staff[0]?.id ?? "", time: "12:00" })}
+              onClick={() =>
+                setPick({ kind: "block", staffId: columns[0]?.id ?? board.staff[0]?.id ?? "", time: "12:00" })
+              }
             >
               Block time
             </Button>
@@ -123,64 +234,66 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div
         role="toolbar"
         aria-label="Calendar controls"
-        className="flex flex-wrap items-end gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3"
+        className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3 shadow-[var(--shadow-card)]"
       >
-        <div className="flex items-center gap-1">
-          <IconButton label="Previous day" onClick={() => setDate((d) => addDays(d, -1))} flip />
-          <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
-            Today
-          </Button>
-          <IconButton label="Next day" onClick={() => setDate((d) => addDays(d, 1))} />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1">
+            <IconButton
+              label={view === "week" ? "Previous week" : "Previous day"}
+              onClick={() => setDate((d) => addDays(d, -span))}
+              flip
+            />
+            <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
+              Today
+            </Button>
+            <IconButton
+              label={view === "week" ? "Next week" : "Next day"}
+              onClick={() => setDate((d) => addDays(d, span))}
+            />
+          </div>
+          <WeekStrip monday={monday} date={date} week={view === "week"} onPick={setDate} />
         </div>
-        <Field
-          label="Date"
-          type="date"
-          value={date}
-          onChange={(e) => e.target.value && setDate(e.target.value)}
-          className="w-44"
-        />
-        {board && board.locations.length > 1 && (
-          <Select
-            label="Location"
-            value={board.location_id}
-            onChange={(e) => {
-              setWho("all");
-              setLocationId(e.target.value);
-            }}
-            className="w-48"
-          >
-            {board.locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
-        )}
+        <div className="flex flex-wrap items-end gap-3">
+          <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
+          <Field
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="w-44"
+          />
+          <Field
+            label="Search"
+            type="search"
+            value={search}
+            placeholder="Client or service"
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-52"
+          />
+        </div>
         {board && board.staff.length > 1 && (
-          <Select label="Team" value={who} onChange={(e) => setWho(e.target.value)} className="w-44">
-            <option value="all">Everyone</option>
-            {board.staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.display_name}
-              </option>
-            ))}
-          </Select>
-        )}
-        <Field
-          label="Search"
-          type="search"
-          value={search}
-          placeholder="Client or service"
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-52"
-        />
-        <Toggle label="View" value={view} onChange={setView} options={{ board: "Board", list: "List" }} />
-        {view === "board" && (
-          <Toggle label="Rows" value={size} onChange={setSize} options={{ compact: "Compact", roomy: "Roomy" }} />
+          <Chips
+            label={view === "week" ? "Whose week" : "Team"}
+            items={board.staff.map((s) => ({ id: s.id, name: s.display_name, color: colors.get(s.id) }))}
+            isOn={(id) => (view === "week" ? id === weekOf : !hidden.includes(id))}
+            onPick={(id) => {
+              if (view === "week") return setPerson(id);
+              // Hiding the last person shown would leave an empty board, so show everyone instead.
+              const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+              setHidden(next.length >= board.staff.length ? [] : next);
+            }}
+            all={
+              view === "week"
+                ? undefined
+                : { on: hidden.length === 0, onPick: () => setHidden([]), count: board.staff.length }
+            }
+          />
         )}
       </div>
 
       <FormError message={error} />
+      {board && columns.length > 0 && view !== "week" && <Summary board={board} columns={columns} bookings={shown} />}
+      {view !== "week" && waiting.length > 0 && <WaitingList waiting={waiting} />}
       {notice && (
         <p
           role="status"
@@ -203,7 +316,6 @@ export function DayBoard({ businessId }: { businessId: string }) {
               board={board}
               columns={columns}
               bookings={shown}
-              size={size}
               today={date === isoDate(new Date())}
               slot={slot}
               onSlot={setSlot}
@@ -212,10 +324,23 @@ export function DayBoard({ businessId }: { businessId: string }) {
                 setNotice(null);
                 setPick(p);
               }}
+              onMove={move}
+              colors={colors}
+            />
+          )}
+          {board && view === "week" && weekOf && (
+            <WeekView
+              businessId={businessId}
+              staffId={weekOf}
+              date={date}
+              refreshed={refreshed}
+              search={needle}
+              onOpenDay={openDay}
+              color={weekOf ? colors.get(weekOf) : undefined}
             />
           )}
           {board && columns.length > 0 && view === "list" && (
-            <List board={board} bookings={shown} onPick={(id) => setPick({ kind: "booking", id })} />
+            <List board={board} bookings={shown} colors={colors} onPick={(id) => setPick({ kind: "booking", id })} />
           )}
         </div>
         {pick && board && (
@@ -273,6 +398,130 @@ function IconButton({ label, onClick, flip }: { label: string; onClick: () => vo
   );
 }
 
+/** A row of on/off buttons: locations, or which team members to show. */
+function Chips({
+  label,
+  items,
+  isOn,
+  onPick,
+  all,
+  icon,
+  compact,
+}: {
+  compact?: boolean;
+  label: string;
+  items: { id: string; name: string; color?: StaffColor }[];
+  isOn: (id: string) => boolean;
+  onPick: (id: string) => void;
+  all?: { on: boolean; onPick: () => void; count: number };
+  icon?: "pin";
+}) {
+  const chip =
+    "flex min-h-11 shrink-0 items-center whitespace-nowrap gap-2 rounded-full border px-3 text-sm font-semibold transition-colors";
+  return (
+    <div role="group" aria-label={label} className={cn("flex min-w-0 gap-2", compact ? "items-center" : "flex-col")}>
+      <span aria-hidden="true" className={cn("text-sm font-semibold", compact ? "text-muted" : "text-ink")}>
+        {label}
+      </span>
+      {/* One row that scrolls sideways, so 15 people don't push the board off the screen. */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {all && (
+          <button
+            type="button"
+            aria-pressed={all.on}
+            onClick={all.onPick}
+            className={cn(
+              chip,
+              all.on ? "border-ink bg-ink text-white" : "border-line-strong bg-surface hover:bg-mint",
+            )}
+          >
+            Everyone ({all.count})
+          </button>
+        )}
+        {items.map((item) => {
+          const on = isOn(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(item.id)}
+              className={cn(
+                chip,
+                on && !item.color && "border-ink bg-ink text-white",
+                on && item.color && "text-ink",
+                !on && "border-line-strong bg-surface hover:bg-mint",
+                !on && item.color && "bg-ground text-muted line-through",
+              )}
+              style={on && item.color ? { borderColor: item.color.accent, background: item.color.tint } : undefined}
+            >
+              {icon && <Icon name={icon} />}
+              {item.color && (
+                <span
+                  aria-hidden="true"
+                  className="flex size-6 items-center justify-center rounded-full text-[0.625rem] font-bold text-white"
+                  style={{ background: on ? item.color.accent : "var(--color-muted)" }}
+                >
+                  {initials(item.name)}
+                </span>
+              )}
+              {item.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Monday to Sunday around the chosen day, one tap to jump. */
+function WeekStrip({
+  monday,
+  date,
+  week,
+  onPick,
+}: {
+  monday: string;
+  date: string;
+  week: boolean;
+  onPick: (day: string) => void;
+}) {
+  const today = isoDate(new Date());
+  const short = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
+  const month = new Intl.DateTimeFormat("en-GB", { month: "long" });
+  return (
+    <div
+      role="group"
+      aria-label="Days this week"
+      className="flex min-w-0 basis-full gap-1 overflow-x-auto sm:flex-1 sm:basis-0"
+    >
+      {Array.from({ length: 7 }, (_, i) => addDays(monday, i)).map((day) => {
+        const on = week || day === date;
+        return (
+          <button
+            key={day}
+            type="button"
+            aria-pressed={day === date}
+            onClick={() => onPick(day)}
+            className={cn(
+              "relative flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center rounded-[var(--radius-control)] text-sm transition-colors",
+              day === date ? "bg-spruce text-white" : on ? "bg-mint text-ink" : "text-ink hover:bg-mint",
+            )}
+          >
+            <span className="text-xs font-semibold uppercase">{short.format(parseDate(day))}</span>{" "}
+            <span className="text-lg leading-tight font-bold tabular-nums">{parseDate(day).getDate()}</span>
+            <span className="sr-only"> {month.format(parseDate(day))}</span>
+            <span
+              aria-hidden="true"
+              className={cn("size-1.5 rounded-full", day === today ? (day === date ? "bg-white" : "bg-spruce") : "")}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Toggle<T extends string>({
   label,
   value,
@@ -309,30 +558,172 @@ function Toggle<T extends string>({
 
 // --- the board -------------------------------------------------------------------------------
 
+type Kind = "online" | "walk-in" | "pending" | "done" | "no-show";
+
+/** Status is a word and a mark on the block; colour belongs to the team member. */
+const KIND: Record<Kind, { label: string; mark: string }> = {
+  online: { label: "Booked online", mark: "●" },
+  "walk-in": { label: "Added by the venue", mark: "○" },
+  pending: { label: "Waiting to confirm", mark: "…" },
+  done: { label: "Done", mark: "✓" },
+  "no-show": { label: "No-show", mark: "✕" },
+};
+
+/** A block's colours: the person's tint while it's still to come, plain once it's over. */
+function blockStyle(kind: Kind, color: StaffColor | undefined): CSSProperties {
+  const accent = color?.accent ?? "var(--color-spruce)";
+  if (kind === "done" || kind === "no-show") return { borderColor: accent, background: "var(--color-surface)" };
+  return { borderColor: accent, background: color?.tint ?? "var(--color-mint-strong)" };
+}
+
+function kindOf(b: Booking): Kind {
+  if (b.status === "completed") return "done";
+  if (b.status === "no_show") return "no-show";
+  if (b.status === "pending") return "pending";
+  return b.source === "consumer" ? "online" : "walk-in";
+}
+
+/** The hours worth showing: from the earliest shift or booking to the latest, on whole hours. */
+function dayHours(board: Board, columns: Board["staff"], bookings: Booking[]): { open: number; close: number } {
+  const tz = board.timezone;
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (const c of columns) {
+    if (c.shift) {
+      starts.push(toMinutes(c.shift.starts));
+      ends.push(toMinutes(c.shift.ends));
+    }
+  }
+  for (const b of bookings) {
+    starts.push(minutesAt(b.starts_at, tz));
+    ends.push(dayAt(b.ends_at, tz) > board.date ? 24 * 60 : minutesAt(b.ends_at, tz));
+  }
+  if (starts.length === 0) return { open: 9 * 60, close: 17 * 60 };
+  const open = Math.floor(Math.min(...starts) / 60) * 60;
+  const close = Math.min(24 * 60, Math.ceil(Math.max(...ends) / 60) * 60);
+  return { open, close: Math.max(close, open + 60) };
+}
+
+/** The day at a glance for the people shown: what's booked, what's free, what it should bring in. */
+function WaitingList({ waiting }: { waiting: Waiting[] }) {
+  return (
+    <section
+      aria-labelledby="waiting"
+      className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3"
+    >
+      <h2 id="waiting" className="text-sm font-semibold">
+        Waiting for a time ({waiting.length})
+      </h2>
+      <p className="text-sm text-muted">If you cancel or move an appointment, they&apos;re emailed straight away.</p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {waiting.map((w) => (
+          <li key={w.id} className="rounded-full bg-ground px-3 py-1.5 text-sm">
+            <span className="font-semibold">{w.name}</span> · {w.service_name}
+            {w.notified && <span className="text-muted"> · emailed</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Summary({ board, columns, bookings }: { board: Board; columns: Board["staff"]; bookings: Booking[] }) {
+  const tz = board.timezone;
+  const live = bookings.filter((b) => LIVE.has(b.status));
+  const length = (b: { starts_at: string; ends_at: string }) =>
+    (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60_000;
+  const booked = live.reduce((sum, b) => sum + length(b), 0);
+  const ids = new Set(columns.map((c) => c.id));
+  const working = columns.reduce(
+    (sum, c) => sum + (c.shift ? toMinutes(c.shift.ends) - toMinutes(c.shift.starts) : 0),
+    0,
+  );
+  const blocked = board.time_off
+    .filter((t) => ids.has(t.staff_id))
+    .reduce((sum, t) => {
+      const from = dayAt(t.starts_at, tz) < board.date ? 0 : minutesAt(t.starts_at, tz);
+      const to = dayAt(t.ends_at, tz) > board.date ? 24 * 60 : minutesAt(t.ends_at, tz);
+      return sum + Math.max(0, to - from);
+    }, 0);
+  const free = Math.max(0, working - booked - blocked);
+  const currency = live[0]?.currency ?? board.services[0]?.currency ?? "EUR";
+  const takings = live.reduce((sum, b) => sum + b.price_minor, 0);
+  const noShows = bookings.filter((b) => b.status === "no_show").length;
+  const items = [
+    { label: "Appointments", value: String(live.length) },
+    { label: "Booked", value: booked ? formatDuration(booked) : "0 min" },
+    { label: "Free time", value: working === 0 ? "No one working" : free ? formatDuration(free) : "Fully booked" },
+    { label: "Expected takings", value: formatPrice(takings, currency) },
+  ];
+  if (noShows) items.push({ label: "No-shows", value: String(noShows) });
+  return (
+    <section
+      aria-label="Day summary"
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[var(--radius-control)] bg-mint px-4 py-2.5"
+    >
+      <dl className="flex flex-wrap gap-x-5 gap-y-1">
+        {items.map((i) => (
+          // The value reads first on screen; the term still comes first for screen readers.
+          <div key={i.label} className="flex flex-row-reverse items-baseline gap-1.5">
+            <dt className="text-sm text-muted">{i.label.toLowerCase()}</dt>
+            <dd className="text-lg font-bold text-spruce tabular-nums">{i.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <ul aria-label="Colour key" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <li>Colour = team member.</li>
+        {(Object.keys(KIND) as Kind[]).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="font-bold text-ink">
+              {KIND[k].mark}
+            </span>
+            {KIND[k].label}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Grid({
   board,
   columns,
   bookings,
-  size,
   today,
   slot,
   onSlot,
   onPick,
+  onMove,
+  colors,
 }: {
+  colors: Map<string, StaffColor>;
   board: Board;
   columns: Board["staff"];
   bookings: Booking[];
-  size: Size;
   today: boolean;
   slot: Slot | null;
   onSlot: (s: Slot | null) => void;
   onPick: (p: Pick) => void;
+  onMove: (id: string, staffId: string, minutes: number) => void;
 }) {
-  const row = ROW_HEIGHT[size];
-  const height = ROWS * row;
+  const row = ROW;
   const tz = board.timezone;
+  const { open: OPEN, close: CLOSE } = dayHours(board, columns, bookings);
+  const height = ((CLOSE - OPEN) / STEP) * row;
   const top = (minutes: number) => ((Math.max(OPEN, Math.min(CLOSE, minutes)) - OPEN) / STEP) * row;
   const [now, setNow] = useState<number | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Open at the current time today, otherwise at the first appointment.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const first = bookings.length ? Math.min(...bookings.map((b) => minutesAt(b.starts_at, tz))) : OPEN;
+    const at = today ? minutesAt(new Date().toISOString(), tz) - 60 : first - 30;
+    el.scrollTop = Math.max(0, top(at));
+    // Only when the day or location changes, not on every booking edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.date, board.location_id]);
 
   useEffect(() => {
     if (!today) return;
@@ -353,20 +744,36 @@ function Grid({
   }
 
   const canBook = (id: string) => board.can_book_staff_ids.includes(id);
+  const grab = useRef(0); // where on the block it was picked up, so it lands where it's dropped
+
+  function drop(event: DragEvent<HTMLDivElement>, staffId: string) {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/x-booking");
+    if (!id) return;
+    const y = event.clientY - event.currentTarget.getBoundingClientRect().top - grab.current;
+    const minutes = OPEN + Math.max(0, Math.round(y / row)) * STEP;
+    onMove(id, staffId, minutes);
+  }
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
+    <div
+      ref={scroller}
+      tabIndex={0}
+      role="region"
+      aria-label="Day board"
+      className="max-h-[calc(100dvh-13rem)] min-h-96 overflow-auto rounded-[var(--radius-card)] border border-line bg-surface"
+    >
       <div className="flex w-max min-w-full">
         <div aria-hidden="true" className="sticky left-0 z-20 w-14 shrink-0 border-r border-line bg-surface">
-          <div className="h-16 border-b border-line" />
+          <div className="sticky top-0 z-30 h-16 border-b border-line bg-surface" />
           <div className="relative" style={{ height }}>
-            {QUARTERS.filter((_, i) => i % 4 === 0 && i < ROWS).map((t, i) => (
+            {Array.from({ length: (CLOSE - OPEN) / 60 }, (_, i) => (
               <span
-                key={t}
+                key={i}
                 className="absolute right-2 -translate-y-1/2 text-xs text-muted"
                 style={{ top: i * 4 * row }}
               >
-                {i === 0 ? "" : t}
+                {i === 0 ? "" : clock(OPEN + i * 60)}
               </span>
             ))}
           </div>
@@ -381,13 +788,32 @@ function Grid({
             <section
               key={col.id}
               aria-label={col.display_name}
-              className="min-w-44 flex-1 border-r border-line last:border-r-0"
+              className={cn(
+                "flex-1 border-r border-line last:border-r-0",
+                columns.length > 6 ? "min-w-36" : "min-w-44",
+              )}
             >
-              <header className="sticky top-0 z-10 flex h-16 flex-col justify-center border-b border-line bg-surface px-3">
-                <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
-                <p className="text-xs text-muted">{col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}</p>
+              <header
+                className="sticky top-0 z-10 flex h-16 items-center gap-2.5 border-t-4 border-b border-b-line bg-surface px-3"
+                style={{ borderTopColor: colors.get(col.id)?.accent }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: colors.get(col.id)?.accent }}
+                >
+                  {initials(col.display_name)}
+                </span>
+                <span className="min-w-0">
+                  <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
+                  <p className="text-xs text-muted">
+                    {col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}
+                    {own.length > 0 && ` · ${own.filter((b) => LIVE.has(b.status)).length} booked`}
+                  </p>
+                </span>
               </header>
               <div
+                data-opens={OPEN}
                 className={cn("relative bg-ground", clickable && "cursor-pointer")}
                 style={{
                   height,
@@ -395,6 +821,8 @@ function Grid({
                 }}
                 // Mouse shortcut only. Keyboard users have the New appointment and Block time buttons.
                 onClick={clickable ? (e) => clickSlot(e, col.id) : undefined}
+                onDragOver={canBook(col.id) ? (e) => e.preventDefault() : undefined}
+                onDrop={canBook(col.id) ? (e) => drop(e, col.id) : undefined}
               >
                 {shiftStart !== null && shiftEnd !== null && (
                   <div
@@ -441,24 +869,44 @@ function Grid({
                   const end = minutesAt(b.ends_at, tz) || 24 * 60;
                   if (end <= OPEN || start >= CLOSE) return null;
                   const h = Math.max(row, top(end) - top(start));
+                  const kind = kindOf(b);
+                  const movable = (b.status === "pending" || b.status === "confirmed") && canBook(b.staff_id);
                   return (
                     <button
                       key={b.id}
                       type="button"
+                      // Mouse shortcut only. Everyone can move it with "Edit or move" in the panel.
+                      draggable={movable}
+                      onDragStart={(e) => {
+                        grab.current = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                        e.dataTransfer.setData("text/x-booking", b.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onPick({ kind: "booking", id: b.id });
                       }}
-                      className="absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 border-spruce bg-mint-strong px-2 py-1 text-left text-xs shadow-sm transition-transform hover:-translate-y-px hover:shadow-md"
-                      style={{ top: top(start), height: h - 2 }}
+                      className={cn(
+                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
+                        kind === "pending" && "border-y border-r border-dashed",
+                        (kind === "done" || kind === "no-show") &&
+                          "border-y border-r border-y-line border-r-line text-muted",
+                      )}
+                      style={{ top: top(start), height: h - 2, ...blockStyle(kind, colors.get(b.staff_id)) }}
                     >
-                      <span className="block font-bold text-spruce">
-                        {clock(start)} {b.client_name}
+                      <span className="flex items-baseline gap-1 font-bold">
+                        <span aria-hidden="true">{KIND[kind].mark}</span>
+                        <span className={cn("truncate", kind === "no-show" && "line-through")}>
+                          {clock(start)} {b.client_name}
+                        </span>
                       </span>{" "}
-                      {b.client_flags.includes("risk") && (
+                      <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>
+                        {b.service_name} · {KIND[kind].label}
+                      </span>
+                      {b.client_flags.length > 0 && h > row * 2.5 && <Flags flags={b.client_flags} className="mt-1" />}
+                      {b.client_flags.includes("risk") && h <= row * 2.5 && (
                         <span className="block font-bold text-danger">{FLAG_TEXT.risk}</span>
                       )}
-                      <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>{b.service_name}</span>
                       <span className="sr-only">(until {clock(end)})</span>
                     </button>
                   );
@@ -544,7 +992,153 @@ function SlotMenu({
   );
 }
 
-function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; onPick: (id: string) => void }) {
+/** One person's week. Each day opens on the day board; appointments open there too. */
+function WeekView({
+  businessId,
+  staffId,
+  date,
+  refreshed,
+  search,
+  onOpenDay,
+  color,
+}: {
+  color: StaffColor | undefined;
+  businessId: string;
+  staffId: string;
+  date: string;
+  refreshed: number;
+  search: string;
+  onOpenDay: (day: string, bookingId?: string) => void;
+}) {
+  const monday = addDays(date, -((parseDate(date).getDay() + 6) % 7));
+  const [week, setWeek] = useState<WeekBoard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api<WeekBoard>(`/businesses/${businessId}/calendar/week?staff_id=${staffId}&week=${monday}`)
+      .then((w) => live && (setWeek(w), setError(null)))
+      .catch((e: unknown) => live && setError(message(e)));
+    return () => {
+      live = false;
+    };
+  }, [businessId, staffId, monday, refreshed]);
+
+  if (error) return <FormError message={error} />;
+  if (!week || week.week !== monday || week.staff.id !== staffId) return <p className="text-muted">Loading…</p>;
+  const tz = week.timezone;
+  const today = isoDate(new Date());
+  const dayName = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <section aria-label={`${week.staff.display_name}'s week`} className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2.5 text-xl font-bold">
+        <span
+          aria-hidden="true"
+          className="flex size-9 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{ background: color?.accent }}
+        >
+          {initials(week.staff.display_name)}
+        </span>
+        {week.staff.display_name}&apos;s week
+      </h2>
+      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {week.days.map((d) => {
+          const own = week.bookings.filter(
+            (b) =>
+              dayAt(b.starts_at, tz) === d.date &&
+              (!search ||
+                b.client_name.toLowerCase().includes(search) ||
+                b.service_name.toLowerCase().includes(search)),
+          );
+          const live = own.filter((b) => LIVE.has(b.status));
+          const booked = live.reduce((sum, b) => sum + minutesAt(b.ends_at, tz) - minutesAt(b.starts_at, tz), 0);
+          const blocked = week.time_off
+            .filter((t) => dayAt(t.starts_at, tz) <= d.date && dayAt(t.ends_at, tz) >= d.date)
+            .reduce((sum, t) => {
+              const from = dayAt(t.starts_at, tz) < d.date ? 0 : minutesAt(t.starts_at, tz);
+              const to = dayAt(t.ends_at, tz) > d.date ? 24 * 60 : minutesAt(t.ends_at, tz);
+              return sum + Math.max(0, to - from);
+            }, 0);
+          const working = d.shift ? toMinutes(d.shift.ends) - toMinutes(d.shift.starts) : 0;
+          const free = Math.max(0, working - booked - blocked);
+          return (
+            <li
+              key={d.date}
+              className={cn(
+                "flex flex-col gap-2 rounded-[var(--radius-card)] border bg-surface p-3",
+                d.date === today ? "border-spruce" : "border-line",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onOpenDay(d.date)}
+                className="flex min-h-11 flex-col items-start rounded-lg text-left hover:text-spruce"
+              >
+                <span className="font-bold">
+                  {dayName.format(parseDate(d.date))}
+                  {d.date === today && <span className="text-spruce"> · Today</span>}
+                </span>
+                <span className="text-xs text-muted">
+                  {d.shift
+                    ? `${d.shift.starts}–${d.shift.ends} · ${free ? `${formatDuration(free)} free` : "Full"}`
+                    : "Day off"}
+                </span>
+              </button>
+              {own.length === 0 ? (
+                <p className="text-sm text-muted">{d.shift ? "No appointments" : ""}</p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {own.map((b) => {
+                    const kind = kindOf(b);
+                    return (
+                      <li key={b.id}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenDay(d.date, b.id)}
+                          className={cn(
+                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink hover:shadow-md",
+                            (kind === "done" || kind === "no-show") && "text-muted",
+                          )}
+                          style={blockStyle(kind, color)}
+                        >
+                          <span className="flex items-baseline gap-1 font-bold">
+                            <span aria-hidden="true">{KIND[kind].mark}</span>
+                            <span className={cn(kind === "no-show" && "line-through")}>
+                              {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                            </span>
+                          </span>
+                          <span className="truncate">
+                            {b.service_name} · {KIND[kind].label}
+                          </span>
+                          {b.client_flags.includes("risk") && (
+                            <span className="font-bold text-danger">{FLAG_TEXT.risk}</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function List({
+  board,
+  bookings,
+  colors,
+  onPick,
+}: {
+  board: Board;
+  bookings: Booking[];
+  colors: Map<string, StaffColor>;
+  onPick: (id: string) => void;
+}) {
   const name = (id: string) => board.staff.find((s) => s.id === id)?.display_name ?? "";
   if (bookings.length === 0) {
     return (
@@ -590,8 +1184,20 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
               <td className="px-4 py-2 font-semibold">
                 {b.client_name} <Flags flags={b.client_flags} />
               </td>
-              <td className="px-4 py-2">{b.service_name}</td>
-              <td className="px-4 py-2">{name(b.staff_id)}</td>
+              <td className="px-4 py-2">
+                {b.service_name}
+                <span className="block text-xs text-muted">{KIND[kindOf(b)].label}</span>
+              </td>
+              <td className="px-4 py-2">
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="size-3 shrink-0 rounded-full"
+                    style={{ background: colors.get(b.staff_id)?.accent }}
+                  />
+                  {name(b.staff_id)}
+                </span>
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{formatPrice(b.price_minor, b.currency)}</td>
             </tr>
           ))}
@@ -814,6 +1420,10 @@ function AppointmentPanel({
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  // When the owner asked to record one, to say when online booking opens.
+  const [confirmPatch, setConfirmPatch] = useState<number | null>(null);
+  const [patchNote, setPatchNote] = useState<string | null>(null);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
@@ -840,6 +1450,12 @@ function AppointmentPanel({
   const open = detail.status === "pending" || detail.status === "confirmed";
   const mayChange = open && board.can_book_staff_ids.includes(detail.staff_id);
   const mayMark = detail.status === "confirmed" && started && board.can_mark_staff_ids.includes(detail.staff_id);
+  // Patch tests are kept on the customer's account at this venue, so not for walk-in guests.
+  const mayRecord =
+    detail.source === "consumer" &&
+    detail.status !== "cancelled" &&
+    detail.needs_patch_test &&
+    board.can_mark_staff_ids.includes(detail.staff_id);
   const person = board.staff.find((s) => s.id === detail.staff_id)?.display_name ?? "";
   const chosen = staff ?? detail.staff_id;
   const people = board.staff.filter((s) => board.can_book_staff_ids.includes(s.id));
@@ -869,19 +1485,30 @@ function AppointmentPanel({
     }
   }
 
-  async function mark(outcome: "complete" | "no-show") {
+  async function noShow() {
     if (!detail) return;
     setBusy(true);
     setError(null);
     try {
-      await api(`/bookings/${detail.id}/${outcome}`, { method: "PATCH" });
-      await onChanged(
-        outcome === "complete"
-          ? `Marked ${detail.client_name}'s appointment as done.`
-          : `Marked ${detail.client_name} as a no-show.`,
-      );
+      await api(`/bookings/${detail.id}/no-show`, { method: "PATCH" });
+      await onChanged(`Marked ${detail.client_name} as a no-show.`);
     } catch (e) {
       setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  async function recordPatchTest() {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
+      setConfirmPatch(null);
+      setPatchNote(`Patch test recorded for ${detail.client_name} today.`);
+    } catch (e) {
+      setError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -917,6 +1544,12 @@ function AppointmentPanel({
             </dd>
             <dt className="text-muted">With</dt>
             <dd>{person}</dd>
+            {detail.resource_name && (
+              <>
+                <dt className="text-muted">Room</dt>
+                <dd>{detail.resource_name}</dd>
+              </>
+            )}
             {detail.guest_phone && (
               <>
                 <dt className="text-muted">Phone</dt>
@@ -935,6 +1568,26 @@ function AppointmentPanel({
             )}
             <dt className="text-muted">Notes</dt>
             <dd className="whitespace-pre-line">{detail.notes || "None"}</dd>
+            {(detail.needs_patch_test || detail.patch_test_at) && (
+              <>
+                <dt className="text-muted">Patch test</dt>
+                <dd>
+                  {detail.patch_test_at
+                    ? `Done ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(new Date(detail.patch_test_at))}`
+                    : "None recorded"}
+                </dd>
+              </>
+            )}
+            {detail.sale && (
+              <>
+                <dt className="text-muted">Paid</dt>
+                <dd className="font-semibold">
+                  {formatPrice(detail.sale.price_minor, detail.sale.currency)},{" "}
+                  {METHODS[detail.sale.method].toLowerCase()}
+                  {detail.sale.tip_minor > 0 && ` · tip ${formatPrice(detail.sale.tip_minor, detail.sale.currency)}`}
+                </dd>
+              </>
+            )}
             {(detail.status === "completed" || detail.status === "no_show") && (
               <>
                 <dt className="text-muted">Outcome</dt>
@@ -942,15 +1595,71 @@ function AppointmentPanel({
               </>
             )}
           </dl>
-          {mayMark && (
+          {detail.form !== "none" && <VisitAnswers bookingId={detail.id} state={detail.form} />}
+          {patchNote && (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm font-semibold text-spruce"
+            >
+              {patchNote}
+            </p>
+          )}
+          {mayRecord && confirmPatch === null && (
+            <Button
+              variant="secondary"
+              className="self-start"
+              disabled={busy}
+              onClick={() => setConfirmPatch(Date.now())}
+            >
+              Record patch test today
+            </Button>
+          )}
+          {mayRecord && confirmPatch !== null && (
+            <div
+              role="alertdialog"
+              aria-labelledby="patch-q"
+              className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-warn-soft p-4"
+            >
+              <p id="patch-q" className="text-sm font-semibold">
+                Record that {detail.client_name} had a patch test here today? They can then book this service online
+                from{" "}
+                {new Intl.DateTimeFormat("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: tz,
+                }).format(new Date(confirmPatch + 48 * 3600 * 1000))}
+                .
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={busy} onClick={recordPatchTest} autoFocus>
+                  Yes, record it
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmPatch(null)} disabled={busy}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          )}
+          {detail.needs_patch_test && detail.source !== "consumer" && (
+            <p className="text-sm text-muted">
+              Patch tests are kept on a customer&apos;s Spruce account, so they can&apos;t be recorded for a walk-in.
+            </p>
+          )}
+          {mayMark && !checkingOut && (
             <div className="flex flex-wrap gap-2">
-              <Button loading={busy} onClick={() => mark("complete")}>
-                Mark as done
+              <Button disabled={busy} onClick={() => setCheckingOut(true)}>
+                Check out
               </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => mark("no-show")}>
+              <Button variant="secondary" disabled={busy} onClick={noShow}>
                 No-show
               </Button>
             </div>
+          )}
+          {mayMark && checkingOut && (
+            <Checkout detail={detail} onDone={(paid) => onChanged(paid)} onBack={() => setCheckingOut(false)} />
           )}
           {mayChange && !confirmCancel && (
             <div className="flex flex-wrap gap-2">
@@ -1013,6 +1722,227 @@ function AppointmentPanel({
         </form>
       )}
     </>
+  );
+}
+
+const METHODS = { card: "Card", cash: "Cash", other: "Other" } as const;
+
+/** "35", "35.5" or "35,50" to cents. Null when it isn't an amount. */
+function toMinor(text: string): number | null {
+  const clean = text.trim().replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
+  return Math.round(Number(clean) * 100);
+}
+
+/** Records what was paid at the venue and finishes the visit (slice 14). Spruce takes no money. */
+function Checkout({
+  detail,
+  onDone,
+  onBack,
+}: {
+  detail: BookingDetail;
+  onDone: (text: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  // No default: a hurried cash payment mustn't be recorded as card.
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [price, setPrice] = useState((detail.price_minor / 100).toFixed(2));
+  const [tipText, setTipText] = useState("");
+  const [errors, setErrors] = useState<{ price?: string; tip?: string; method?: string }>({});
+  const amount = toMinor(price);
+  const tipAmount = tipText.trim() ? toMinor(tipText) : 0;
+  const unusual = amount !== null && detail.price_minor > 0 && amount > detail.price_minor * 3;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const found = {
+      price: amount === null ? "Enter an amount like 35 or 35.50." : undefined,
+      tip: tipAmount === null ? "Enter a tip like 5, or leave it empty." : undefined,
+      method: method === null ? "Choose how they paid." : undefined,
+    };
+    setErrors(found);
+    if (amount === null || tipAmount === null || method === null) {
+      const first = amount === null ? "[name=price]" : tipAmount === null ? "[name=tip]" : "[name=method]";
+      event.currentTarget.querySelector<HTMLInputElement>(first)?.focus();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/bookings/${detail.id}/checkout`, {
+        method: "POST",
+        body: { price_minor: amount, tip_minor: tipAmount, method },
+      });
+      await onDone(`Checked out ${detail.client_name}: ${formatPrice(amount + tipAmount, detail.currency)} paid.`);
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={submit}
+      aria-labelledby="checkout-title"
+      className="flex flex-col gap-4 rounded-[var(--radius-control)] bg-ground p-4"
+    >
+      <h3 id="checkout-title" className="font-bold">
+        Check out
+      </h3>
+      <FormError message={error} />
+      <Field
+        label="Amount for the service"
+        name="price"
+        inputMode="decimal"
+        value={price}
+        onChange={(e) => {
+          setPrice(e.target.value);
+          setErrors((x) => ({ ...x, price: undefined }));
+        }}
+        hint={`In ${detail.currency}. Change it for a discount or an extra.`}
+        error={errors.price}
+        required
+        autoFocus
+      />
+      {unusual && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-3 py-2 text-sm">
+          That&apos;s more than three times the booked price of {formatPrice(detail.price_minor, detail.currency)}.
+          Check it before you confirm.
+        </p>
+      )}
+      <Field
+        label="Tip"
+        name="tip"
+        inputMode="decimal"
+        placeholder="0"
+        hint="Goes to the person in full, with no commission."
+        value={tipText}
+        onChange={(e) => {
+          setTipText(e.target.value);
+          setErrors((x) => ({ ...x, tip: undefined }));
+        }}
+        error={errors.tip}
+      />
+      <fieldset className="flex flex-col gap-1" aria-describedby={errors.method ? "method-error" : undefined}>
+        <legend className="text-sm font-semibold">
+          Paid by
+          <span className="font-normal text-muted">
+            {" "}
+            <span aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </legend>
+        <div className="flex flex-wrap gap-x-5">
+          {(Object.keys(METHODS) as PaymentMethod[]).map((m) => (
+            <label key={m} className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="method"
+                value={m}
+                checked={method === m}
+                onChange={() => {
+                  setMethod(m);
+                  setErrors((x) => ({ ...x, method: undefined }));
+                }}
+                className="size-5 accent-spruce"
+              />
+              {METHODS[m]}
+            </label>
+          ))}
+        </div>
+        {errors.method && (
+          <p id="method-error" className="text-sm font-medium text-danger">
+            {errors.method}
+          </p>
+        )}
+      </fieldset>
+      <p className="text-base font-bold" aria-live="polite">
+        Total to take:{" "}
+        {amount !== null && tipAmount !== null ? formatPrice(amount + tipAmount, detail.currency) : "check the amounts"}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" loading={busy}>
+          Confirm checkout
+        </Button>
+        <Button variant="ghost" onClick={onBack} disabled={busy}>
+          Back
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** A visit's consultation answers (slice 13). Fetched only when asked for, since each read is audited. */
+function VisitAnswers({ bookingId, state }: { bookingId: string; state: "to_fill" | "filled" }) {
+  const [form, setForm] = useState<VisitForm | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function show() {
+    setBusy(true);
+    setError(null);
+    try {
+      setForm(await api<VisitForm>(`/bookings/${bookingId}/form`));
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 404
+          ? "Only the owner and the person doing this visit can read the answers."
+          : message(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby={`answers-${bookingId}`}
+      className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-ground p-3"
+    >
+      <h3 id={`answers-${bookingId}`} className="text-sm font-semibold">
+        Consultation form
+      </h3>
+      {state === "to_fill" ? (
+        <p className="text-sm text-muted">Not filled in yet.</p>
+      ) : form ? (
+        <dl className="flex flex-col gap-2 text-sm">
+          {form.questions.map((q, i) => {
+            const a = form.answers?.[i];
+            return (
+              <div key={i}>
+                <dt className="text-muted">{q.label}</dt>
+                <dd className="whitespace-pre-line font-semibold">
+                  {a === true ? (
+                    // A yes often means something to check before the visit, so it stands out.
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5">
+                      <span aria-hidden="true">!</span> Yes
+                    </span>
+                  ) : a === false ? (
+                    "No"
+                  ) : (
+                    a || "No answer"
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <>
+          {error ? (
+            <p className="text-sm">{error}</p>
+          ) : (
+            <Button variant="secondary" className="self-start" loading={busy} onClick={show}>
+              Show answers
+            </Button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
