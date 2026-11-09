@@ -1419,6 +1419,8 @@ function AppointmentPanel({
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [confirmPatch, setConfirmPatch] = useState(false);
+  const [patchNote, setPatchNote] = useState<string | null>(null);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
@@ -1503,6 +1505,8 @@ function AppointmentPanel({
     setError(null);
     try {
       setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
+      setConfirmPatch(false);
+      setPatchNote(`Patch test recorded for ${detail.client_name} today.`);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -1583,10 +1587,40 @@ function AppointmentPanel({
             )}
           </dl>
           {detail.form !== "none" && <VisitAnswers bookingId={detail.id} state={detail.form} />}
-          {mayRecord && (
-            <Button variant="secondary" className="self-start" disabled={busy} onClick={recordPatchTest}>
+          {patchNote && (
+            <p role="status" className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm font-semibold text-spruce">
+              {patchNote}
+            </p>
+          )}
+          {mayRecord && !confirmPatch && (
+            <Button variant="secondary" className="self-start" disabled={busy} onClick={() => setConfirmPatch(true)}>
               Record patch test today
             </Button>
+          )}
+          {mayRecord && confirmPatch && (
+            <div
+              role="alertdialog"
+              aria-labelledby="patch-q"
+              className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-warn-soft p-4"
+            >
+              <p id="patch-q" className="text-sm font-semibold">
+                Record that {detail.client_name} had a patch test here today? They can then book this service online
+                from 48 hours from now.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={busy} onClick={recordPatchTest} autoFocus>
+                  Yes, record it
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmPatch(false)} disabled={busy}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          )}
+          {detail.needs_patch_test && detail.source !== "consumer" && (
+            <p className="text-sm text-muted">
+              Patch tests are kept on a customer&apos;s Spruce account, so they can&apos;t be recorded for a walk-in.
+            </p>
           )}
           {mayMark && (
             <div className="flex flex-wrap gap-2">
@@ -1702,7 +1736,16 @@ function VisitAnswers({ bookingId, state }: { bookingId: string; state: "to_fill
               <div key={i}>
                 <dt className="text-muted">{q.label}</dt>
                 <dd className="whitespace-pre-line font-semibold">
-                  {typeof a === "boolean" ? (a ? "Yes" : "No") : a || "No answer"}
+                  {a === true ? (
+                    // A yes often means something to check before the visit, so it stands out.
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5">
+                      <span aria-hidden="true">!</span> Yes
+                    </span>
+                  ) : a === false ? (
+                    "No"
+                  ) : (
+                    a || "No answer"
+                  )}
                 </dd>
               </div>
             );

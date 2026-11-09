@@ -295,6 +295,8 @@ TextAnswer = Annotated[StrictStr, StringConstraints(strip_whitespace=True, max_l
 
 class FormAnswersIn(Strict):
     answers: Annotated[list[TextAnswer | StrictBool], Field(max_length=30)]
+    # Health information needs the customer's explicit consent (GDPR art. 9(2)(a)).
+    consent: Literal[True]
 
 
 class BookingFormOut(BaseModel):

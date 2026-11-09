@@ -85,15 +85,20 @@ test("a customer fills in the venue's form, and the venue reads it and records a
   await expect(c.getByRole("heading", { name: /You're booked/ })).toBeVisible();
 
   await c.goto("/bookings");
-  await expect(c.getByText(`${name} asks you to fill in a short form before your visit.`)).toBeVisible();
+  await expect(c.getByText(new RegExp(`${name} asks you to fill in a short form before your visit, .+ at 09:00\\.`))).toBeVisible();
   await c.getByRole("link", { name: /^Fill in the form/ }).click();
   await expect(c.getByRole("heading", { name: "Skin check" })).toBeVisible();
-  await c.getByLabel("Any allergies?").fill("Nuts");
+  await c.getByLabel("Any allergies? (optional)").fill("Nuts");
   await c.getByRole("button", { name: "Send answers" }).click();
   await expect(c.getByText("Choose yes or no.")).toBeVisible();
   await expect(c.getByRole("radio", { name: "Yes" })).toBeFocused();
   await expectAccessible(c);
   await c.getByRole("radio", { name: "No" }).check();
+  // Answers can be health information, so they need the customer's say-so.
+  await c.getByRole("button", { name: "Send answers" }).click();
+  await expect(c.getByText("Tick this box to send your answers. They may include health information.")).toBeVisible();
+  await expect(c.getByRole("checkbox", { name: /I agree to the venue keeping these answers/ })).toBeFocused();
+  await c.getByRole("checkbox", { name: /I agree to the venue keeping these answers/ }).check();
   await c.getByRole("button", { name: "Send answers" }).click();
   await expect(c.getByRole("status")).toContainText("Thanks, the venue has your answers.");
   await expect(c.getByRole("status")).toBeFocused();
@@ -126,6 +131,8 @@ test("a customer fills in the venue's form, and the venue reads it and records a
   await expect(detail.getByRole("definition").filter({ hasText: "None recorded" })).toBeVisible();
   await expectAccessible(page);
   await detail.getByRole("button", { name: "Record patch test today" }).click();
+  await detail.getByRole("button", { name: "Yes, record it" }).click();
+  await expect(detail.getByRole("status")).toHaveText("Patch test recorded for Ana Ozola today.");
   await expect(detail.getByRole("definition").filter({ hasText: /^Done / })).toBeVisible();
 
   // Booking pages say a patch test is needed before a time is picked.

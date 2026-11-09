@@ -23,7 +23,7 @@ and `customer_profiles.patch_test_at`.
 | `PATCH /forms/{id}` | Owner | Name, questions, and the full list of services that use it |
 | `DELETE /forms/{id}` | Owner | Answers already given are kept with their bookings |
 | `GET /bookings/{id}/form` | The booking's customer, the owner, the team member doing it | The questions, and the answers once given. Business reads are audited |
-| `PUT /bookings/{id}/form` | The booking's customer | Until the visit starts; one answer per question, of the right kind |
+| `PUT /bookings/{id}/form` | The booking's customer | Until the visit starts; one answer per question, of the right kind, and `consent: true` |
 | `POST /bookings/{id}/patch-test` | Owner, or the team member doing it with "checkout.own" | Records a patch test today for that customer at this venue |
 | Services | Owner | `needs_patch_test` on add, edit and list; shown on the venue page |
 | `POST /bookings`, reschedule | Customer | 409 when a needed patch test is missing, too recent or too old |
@@ -56,7 +56,8 @@ another owner's forms and services; 422 for a blank name or no questions.
 
 - Answers are health information, so they are encrypted, shown only to the owner and the
   person doing the visit, never listed in bulk, and each business read is written to the audit
-  log (without the answers).
+  log (without the answers). The customer ticks a consent box each time they send them (GDPR
+  article 9), and the API refuses answers without it.
 - Filling in the form isn't required to book: venues ask for it before the visit, and the
   appointment shows when it's missing. This keeps booking quick on a phone.
 - The patch test is only enforced for online bookings. The venue can still book or move a visit
