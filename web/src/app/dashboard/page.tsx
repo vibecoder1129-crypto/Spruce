@@ -1,13 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, CATEGORIES, isoDate, mondayOf, REJECT_REASONS, type Place, type Service, type Shift, type Staff } from "@/lib/api";
+import {
+  api,
+  CATEGORIES,
+  isoDate,
+  mondayOf,
+  REJECT_REASONS,
+  type Channel,
+  type ChannelCount,
+  type Place,
+  type Service,
+  type Shift,
+  type Staff,
+} from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 import { useBusiness } from "./shell";
@@ -61,6 +73,7 @@ export default function DashboardHome() {
           shiftCount={shiftCount}
         />
         <div className="flex flex-col gap-6">
+          {business.approval_status === "approved" && <BookingLink businessId={business.id} name={business.name} />}
           <section aria-labelledby="places-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(160)}>
             <h2 id="places-title" className="text-lg font-bold">
               {places && places.length > 1 ? "Locations" : "Location"}
@@ -115,6 +128,167 @@ export default function DashboardHome() {
   );
 }
 
+const PLACES: { value: Channel; label: string; how: string }[] = [
+  { value: "link", label: "Anywhere", how: "For messages, email or your business card." },
+  { value: "website", label: "Website", how: "Link a menu item or button on your website to it, or use the button below." },
+  { value: "instagram", label: "Instagram", how: "In Instagram, tap Edit profile, then Links, and add it." },
+  { value: "google", label: "Google", how: "In your Google Business Profile, edit your profile and add it as your booking link." },
+  { value: "facebook", label: "Facebook", how: "On your Facebook page, add a Book now button and paste it there." },
+];
+const PLACE_NAMES: Record<Channel, string> = {
+  link: "Your link (messages, email, cards)",
+  website: "Your website",
+  instagram: "Instagram",
+  google: "Google",
+  facebook: "Facebook",
+};
+
+/** Feature list 7.3: the venue's own link and a button for its website, Instagram bio or Google profile (slices 5a, 10). */
+function BookingLink({ businessId, name }: { businessId: string; name: string }) {
+  // Known only in the browser; empty on the server.
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "",
+  );
+  const [place, setPlace] = useState<Channel>("link");
+  const [copied, setCopied] = useState<"link" | "button" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [counts, setCounts] = useState<ChannelCount[] | null>(null);
+  const [countsFailed, setCountsFailed] = useState(false);
+  const base = `${origin}/b/${businessId}/book`;
+  const link = `${base}?from=${place}`;
+  const escaped = name.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
+  const buttonStyle =
+    "display:inline-block;padding:12px 24px;border-radius:999px;" +
+    "background:#1b4332;color:#fff;font:600 16px/1.2 sans-serif;text-decoration:none";
+  const snippet = `<a href="${base}?from=website" style="${buttonStyle}">Book at ${escaped}</a>`;
+
+  useEffect(() => {
+    api<ChannelCount[]>(`/businesses/${businessId}/channels`)
+      .then(setCounts)
+      .catch(() => setCountsFailed(true));
+  }, [businessId]);
+
+  async function copy(what: "link" | "button", text: string) {
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      setTimeout(() => setCopied((c) => (c === what ? null : c)), 2500);
+    } catch {
+      setError("Your browser blocked copying. Select the text and copy it yourself.");
+    }
+  }
+
+  return (
+    <section aria-labelledby="link-title" className="rise rounded-[var(--radius-card)] border border-line bg-surface p-6 shadow-[var(--shadow-card)]" style={delay(100)}>
+      <h2 id="link-title" className="text-lg font-bold">
+        Your booking link
+      </h2>
+      <p className="mt-1 text-sm text-muted">Each place gets its own link, so you can see where bookings come from.</p>
+      <FormError message={error} />
+      <fieldset className="mt-4">
+        <legend className="text-sm font-semibold">Where will you share it?</legend>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {PLACES.map((p) => (
+            <label
+              key={p.value}
+              className="flex min-h-11 cursor-pointer items-center rounded-full border border-line-strong px-4 text-sm font-semibold has-checked:border-spruce has-checked:bg-mint has-checked:text-spruce has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-spruce"
+            >
+              <input
+                type="radio"
+                name="share-place"
+                value={p.value}
+                checked={place === p.value}
+                onChange={() => {
+                  setPlace(p.value);
+                  setCopied(null);
+                }}
+                className="sr-only"
+              />
+              {p.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label htmlFor="booking-link" className="mt-4 block text-sm font-semibold">
+        Link
+      </label>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        <input
+          id="booking-link"
+          readOnly
+          value={link}
+          aria-describedby="booking-link-how"
+          onFocus={(e) => e.currentTarget.select()}
+          className="min-h-11 min-w-0 flex-1 rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 text-sm"
+        />
+        <Button variant="secondary" onClick={() => copy("link", link)}>
+          <Icon name="copy" /> {copied === "link" ? "Copied" : "Copy link"}
+        </Button>
+      </div>
+      <p id="booking-link-how" className="mt-1.5 text-sm text-muted">
+        {PLACES.find((p) => p.value === place)?.how}
+      </p>
+      {place === "website" && (
+        <>
+          <label htmlFor="booking-button" className="mt-4 block text-sm font-semibold">
+            Button for your website
+          </label>
+          <figure className="mt-1.5 flex flex-col items-start gap-1.5 rounded-[var(--radius-control)] border border-dashed border-line-strong p-4">
+            <span
+              aria-hidden="true"
+              className="inline-block rounded-full bg-[#1b4332] px-6 py-3 font-sans text-base leading-tight font-semibold text-white"
+            >
+              Book at {name}
+            </span>
+            <figcaption className="text-xs text-muted">
+              How it looks on your website. To match your colours, change #1b4332 in the code.
+            </figcaption>
+          </figure>
+          <textarea
+            id="booking-button"
+            readOnly
+            rows={3}
+            value={snippet}
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-2 w-full rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 py-2 font-mono text-xs"
+          />
+          <Button variant="secondary" className="mt-2" onClick={() => copy("button", snippet)}>
+            <Icon name="copy" /> {copied === "button" ? "Copied" : "Copy button code"}
+          </Button>
+        </>
+      )}
+      <p role="status" className="sr-only">
+        {copied ? "Copied to your clipboard." : ""}
+      </p>
+      <section aria-labelledby="channels-title" className="mt-6 border-t border-line pt-4">
+        <h3 id="channels-title" className="font-bold">
+          Where online bookings came from
+        </h3>
+        <p className="text-sm text-muted">Last 30 days</p>
+        {countsFailed ? (
+          <p className="mt-2 text-sm">Couldn&apos;t load these counts. Reload the page to try again.</p>
+        ) : counts === null ? (
+          <p className="mt-2 text-sm text-muted">Loading…</p>
+        ) : counts.length === 0 ? (
+          <p className="mt-2 text-sm">No online bookings yet. Share a link above to start.</p>
+        ) : (
+          <dl className="mt-2 flex flex-col gap-1.5">
+            {counts.map((c) => (
+              <div key={c.channel ?? "spruce"} className="flex items-baseline justify-between gap-3 text-sm">
+                <dt>{c.channel ? PLACE_NAMES[c.channel] : "Found you on Spruce"}</dt>
+                <dd className="font-semibold tabular-nums">{c.bookings}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
+    </section>
+  );
+}
+
 /** Where the business is in review: set up, checked by Spruce, then live. */
 function ReviewTracker() {
   const { business, reload } = useBusiness();
@@ -139,7 +313,7 @@ function ReviewTracker() {
   }[status];
   const body = {
     pending: "A person on the Spruce team is checking your details. This page updates when they're done.",
-    approved: "Next, add your services and plan this week's shifts. Then take walk-ins on the calendar. Online booking comes in the next release.",
+    approved: "Next, add your services and plan this week's shifts. Then share your booking link so customers can book online.",
     rejected: "",
     suspended: "Your business is hidden from customers. Contact Spruce support to find out why.",
   }[status];

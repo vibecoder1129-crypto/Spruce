@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    SmallInteger,
     String,
     Text,
     Uuid,
@@ -72,11 +73,20 @@ class Business(IdMixin, CreatedMixin, Base):
     rejection_note: Mapped[str | None] = mapped_column(Text)
     # Set when the owner finishes onboarding; only submitted businesses reach the review queue.
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # How close to the start a customer can still cancel or move. 0 means until it starts.
+    cancel_window_hours: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    # Support access (slice 8): while in the future, a platform admin may help as the owner.
+    support_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(
             "(approval_status = 'rejected') = (rejection_reason IS NOT NULL)",
             name="rejection_has_reason",
+        ),
+        CheckConstraint(
+            "cancel_window_hours IN (0, 2, 6, 12, 24, 48)", name="cancel_window_choices"
         ),
         Index("ix_businesses_review_queue", "approval_status", "submitted_at"),
     )
@@ -128,3 +138,7 @@ class StaffProfile(IdMixin, CreatedMixin, Base):
     title: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     # Removing a staff member archives them, so their history stays.
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # The share of each service amount they earn, kept on each sale at checkout (slice 14).
+    commission_percent: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )

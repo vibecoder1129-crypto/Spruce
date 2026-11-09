@@ -39,6 +39,12 @@ class BookingSource(enum.StrEnum):
     owner = "owner"
 
 
+class PaymentMethod(enum.StrEnum):
+    card = "card"
+    cash = "cash"
+    other = "other"
+
+
 class WeeklyShift(IdMixin, Base):
     """One staff member's hours on one day of one dated week (LLD 3.3). Not a recurring rule.
 
@@ -117,6 +123,13 @@ class Booking(IdMixin, CreatedMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rebook_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which of the venue's own links it came through (slice 10); None when found on Spruce.
+    channel: Mapped[str | None] = mapped_column(String(16))
+    # The room or equipment the visit uses (slice 12); None when the service needs none.
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("resources.id", ondelete="SET NULL"), index=True
+    )
 
     __table_args__ = (
         CheckConstraint("ends_at > starts_at", name="ends_after_starts"),
@@ -131,4 +144,124 @@ class Booking(IdMixin, CreatedMixin, Base):
             using="gist",
             where=text("status <> 'cancelled'"),
         ),
+        ExcludeConstraint(
+            ("resource_id", "="),
+            (text("tstzrange(starts_at, ends_at)"), "&&"),
+            name="no_double_resource",
+            using="gist",
+            where=text("status <> 'cancelled' AND resource_id IS NOT NULL"),
+        ),
+    )
+
+
+class CustomerProfile(IdMixin, Base):
+    """What one business knows about one customer's visits there (HLD 4.8, LLD 3.5, 5.6).
+
+    Business-local: the unique pair keeps each venue's counts apart. The flags are worked out
+    from the counts, so they can never disagree with them.
+    """
+
+    __tablename__ = "customer_profiles"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    consumer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    no_show_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # When the venue last recorded a patch test for this customer (slice 13).
+    patch_test_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "consumer_user_id", name="uq_customer_profiles_pair"),
+    )
+
+    @property
+    def flags(self) -> list[str]:
+        out = []
+        if self.no_show_streak >= RISK_STREAK:
+            out.append("risk")
+        if self.completed_count >= REGULAR_VISITS:
+            out.append("regular")
+        return out
+
+
+RISK_STREAK = 2  # consecutive no-shows (HLD 4.8)
+REGULAR_VISITS = 2  # finished visits
+
+
+class WaitlistEntry(IdMixin, CreatedMixin, Base):
+    """A customer waiting for a time for one service on one local day (slice 7)."""
+
+    __tablename__ = "waitlist_entries"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("services.id", ondelete="CASCADE"), nullable=False
+    )
+    consumer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    name_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("consumer_user_id", "service_id", "day", name="uq_waitlist_once"),
+    )
+
+
+class FormAnswers(Base):
+    """A customer's consultation answers for one visit (slice 13).
+
+    Health information: the questions as asked and the answers are one encrypted JSON blob.
+    """
+
+    __tablename__ = "form_answers"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("bookings.id", ondelete="CASCADE"), primary_key=True
+    )
+    answers_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Sale(IdMixin, CreatedMixin, Base):
+    """What was paid at the venue for one visit (slice 14). Spruce records it, it takes nothing.
+
+    The commission is worked out at checkout and kept, so a later rate change can't rewrite pay.
+    """
+
+    __tablename__ = "sales"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    staff_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("staff_profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    tip_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    method: Mapped[PaymentMethod] = mapped_column(
+        Enum(PaymentMethod, name="payment_method"), nullable=False
+    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    commission_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "price_minor >= 0 AND tip_minor >= 0 AND commission_minor >= 0",
+            name="amounts_not_negative",
+        ),
+        Index("ix_sales_business_created", "business_id", "created_at"),
     )

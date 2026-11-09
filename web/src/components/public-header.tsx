@@ -39,7 +39,7 @@ export function PublicHeader({ onMe }: { onMe?: (me: Me | null) => void }) {
         )}
         {me && (
           <ButtonLink href={nextStep(me)} variant="secondary">
-            Your account
+            {me.role === "consumer" ? "Your bookings" : "Your account"}
           </ButtonLink>
         )}
       </nav>

@@ -28,17 +28,22 @@ async function expectAccessible(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-test("a customer signs up, lands on their account and logs out", async ({ page }) => {
+test("a customer signs up, lands on their bookings, sees their account and logs out", async ({ page }) => {
   const problems = watchConsole(page);
   const email = uniqueEmail("ana");
 
   await page.goto("/signup");
+  await expect(page.getByText(/we may email you once when you.re usually due back/)).toBeVisible();
   await expectAccessible(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("checkbox", { name: /I agree to the terms/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
 
+  await expect(page).toHaveURL(/\/bookings$/);
+  await expect(page.getByText("Nothing booked yet")).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole("link", { name: "Account", exact: true }).click();
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByText(email)).toBeVisible();
   await expect(page.getByText("Not confirmed")).toBeVisible();

@@ -28,7 +28,7 @@ from app.marketplace.schemas import (
     StoreService,
 )
 from app.ratelimit import hit
-from app.team.models import Service
+from app.team.models import Service, StaffService
 
 router = APIRouter(tags=["marketplace"])
 
@@ -186,11 +186,21 @@ async def storefront(business_id: uuid.UUID, db: Db) -> StorefrontOut:
         .where(Service.business_id == business.id, Service.active.is_(True))
         .order_by(Service.category, Service.name)
     )
-    team = await db.scalars(
-        select(StaffProfile)
-        .where(StaffProfile.business_id == business.id, StaffProfile.active.is_(True))
-        .order_by(StaffProfile.created_at)
+    team = list(
+        await db.scalars(
+            select(StaffProfile)
+            .where(StaffProfile.business_id == business.id, StaffProfile.active.is_(True))
+            .order_by(StaffProfile.created_at)
+        )
     )
+    who: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for service_id, staff_id in await db.execute(
+        select(StaffService.service_id, StaffService.staff_id).where(
+            StaffService.staff_id.in_([m.id for m in team])
+        )
+    ):
+        who.setdefault(service_id, []).append(staff_id)
+    order = {m.id: i for i, m in enumerate(team)}
     return StorefrontOut(
         id=business.id,
         name=business.name,
@@ -207,8 +217,21 @@ async def storefront(business_id: uuid.UUID, db: Db) -> StorefrontOut:
             )
             for p in places
         ],
-        services=[StoreService.model_validate(s, from_attributes=True) for s in services],
+        services=[
+            StoreService(
+                id=s.id,
+                name=s.name,
+                category=s.category,
+                duration_minutes=s.duration_minutes,
+                price_minor=s.price_minor,
+                currency=s.currency,
+                staff_ids=sorted(who.get(s.id, []), key=order.__getitem__),
+                needs_patch_test=s.needs_patch_test,
+            )
+            for s in services
+        ],
         team=[StoreMember(id=m.id, display_name=m.display_name, title=m.title) for m in team],
+        cancel_window_hours=business.cancel_window_hours,
     )
 
 

@@ -80,3 +80,8 @@ def new_token() -> str:
 
 def hash_token(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
+
+
+def blind_index(value: str, context: str) -> bytes:
+    """A keyed HMAC for finding equal values without storing them, separate per context."""
+    return hmac.new(_index_key(), f"{context}:{value}".encode(), hashlib.sha256).digest()

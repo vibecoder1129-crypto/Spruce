@@ -18,9 +18,10 @@ const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard/calendar", label: "Calendar", icon: "calendar" },
   { href: "/dashboard/team", label: "Team", icon: "team" },
   { href: "/dashboard/services", label: "Services", icon: "services" },
-  { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
+  { href: "/dashboard/clients", label: "Clients", icon: "client" },
+  { href: "/dashboard/reports", label: "Reports", icon: "reports" },
   { href: "/dashboard/reviews", label: "Reviews", icon: "reviews", soon: true },
-  { href: "/dashboard/settings", label: "Settings", icon: "settings", soon: true },
+  { href: "/dashboard/settings", label: "Settings", icon: "settings" },
 ];
 
 export const STATUS_LABEL = {
@@ -30,7 +31,15 @@ export const STATUS_LABEL = {
   suspended: "Suspended",
 } as const;
 
-type Ctx = { business: Business; reload: () => Promise<void> };
+const supportEnds = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+
+type Ctx = { business: Business; reload: () => Promise<void>; support: boolean };
 const BusinessContext = createContext<Ctx | null>(null);
 
 export function useBusiness(): Ctx {
@@ -178,9 +187,33 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           pathname === "/dashboard/calendar" ? "max-w-[100rem]" : "max-w-5xl",
         )}
       >
+        {me?.support && business && (
+          <section
+            aria-label="Support mode"
+            className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line-strong bg-warn-soft px-4 py-3 shadow-[var(--shadow-card)]"
+          >
+            <p className="text-sm">
+              <span className="font-semibold">You&apos;re helping {business.name} as Spruce support.</span> Every change
+              is logged and the owner can read it.
+              {business.support_until && (
+                <> Access ends {supportEnds.format(new Date(business.support_until))}.</>
+              )}
+            </p>
+            <Button
+              variant="secondary"
+              loading={leaving}
+              onClick={async () => {
+                setLeaving(true);
+                await logOut(router).finally(() => setLeaving(false));
+              }}
+            >
+              End support and log out
+            </Button>
+          </section>
+        )}
         <FormError message={meError ?? error} />
         {business ? (
-          <BusinessContext value={{ business, reload }}>{children}</BusinessContext>
+          <BusinessContext value={{ business, reload, support: !!me?.support }}>{children}</BusinessContext>
         ) : (
           !(meError ?? error) && <p className="text-muted">Loading…</p>
         )}
