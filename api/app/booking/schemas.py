@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -206,6 +206,9 @@ class AvailabilityOut(BaseModel):
     slots: list[Slot]
 
 
+Channel = Literal["website", "instagram", "google", "facebook"]
+
+
 class CustomerBookingIn(Strict):
     service_id: uuid.UUID
     staff_id: uuid.UUID
@@ -213,6 +216,12 @@ class CustomerBookingIn(Strict):
     name: Short
     phone: Phone | None = None
     notes: Notes = ""
+    channel: Channel | None = None  # only a label for the venue's own counts
+
+
+class ChannelCount(BaseModel):
+    channel: Channel | None
+    bookings: int
 
 
 class RescheduleIn(Strict):

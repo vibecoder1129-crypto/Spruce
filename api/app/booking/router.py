@@ -8,7 +8,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,7 @@ from app.booking.schemas import (
     BookingOut,
     BookingPatch,
     CalendarOut,
+    ChannelCount,
     Column,
     DayShift,
     MyBooking,
@@ -771,3 +772,21 @@ async def week_board(
         bookings=[_booking_out(b, name, flags.get(b.id, [])) for b, name in rows],
         time_off=[_time_off_out(b) for b in blocks],
     )
+
+
+@router.get("/businesses/{business_id}/channels")
+async def channels(business_id: uuid.UUID, auth: Owner, db: Db) -> list[ChannelCount]:
+    """Online bookings made in the last 30 days, per place the venue shared its link (slice 10)."""
+    business = await _owned(db, auth, business_id)
+    count = func.count().label("bookings")
+    rows = await db.execute(
+        select(Booking.channel, count)
+        .where(
+            Booking.business_id == business.id,
+            Booking.source == BookingSource.consumer,
+            Booking.created_at > utcnow() - timedelta(days=30),
+        )
+        .group_by(Booking.channel)
+        .order_by(count.desc(), Booking.channel)
+    )
+    return [ChannelCount.model_validate({"channel": c, "bookings": n}) for c, n in rows.all()]

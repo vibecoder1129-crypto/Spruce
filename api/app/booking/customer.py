@@ -335,6 +335,7 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
         ends_at=ends_at,
         status=BookingStatus.confirmed,
         source=BookingSource.consumer,
+        channel=body.channel,
         notes=body.notes,
         price_minor=service.price_minor,
         currency=service.currency,

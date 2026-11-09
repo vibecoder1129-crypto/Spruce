@@ -13,11 +13,13 @@ import {
   addDays,
   api,
   ApiError,
+  asChannel,
   CATEGORIES,
   formatDuration,
   formatPrice,
   parseDate,
   type Availability,
+  type Channel,
   type Me,
   type MyBooking,
   type MyBookings,
@@ -69,6 +71,7 @@ export function BookingFlow() {
   const time = params.get("time");
   const pick = params.get("with");
   const rescheduleId = params.get("reschedule");
+  const channel = asChannel(params.get("from"));
 
   const onMe = useCallback((m: Me | null) => setMe(m), []);
 
@@ -274,6 +277,7 @@ export function BookingFlow() {
           time={time}
           moving={rescheduleId}
           movingBooking={moving}
+          channel={channel}
           onBack={() => go({ time: null, with: null })}
           onDone={(booking) => setFinished({ booking, at: here })}
           onTaken={(text) => {
@@ -571,6 +575,7 @@ function Confirm({
   time,
   moving,
   movingBooking,
+  channel,
   onBack,
   onDone,
   onTaken,
@@ -585,6 +590,7 @@ function Confirm({
   time: string;
   moving: string | null;
   movingBooking: MyBooking | null;
+  channel: Channel | null;
   onBack: () => void;
   onDone: (b: MyBooking) => void;
   onTaken: (text: string) => void;
@@ -614,6 +620,7 @@ function Confirm({
               name: String(form.get("name") ?? "").trim(),
               phone: String(form.get("phone") ?? "").trim() || null,
               notes: String(form.get("notes") ?? "").trim(),
+              channel,
             },
           });
       onDone(booking);
