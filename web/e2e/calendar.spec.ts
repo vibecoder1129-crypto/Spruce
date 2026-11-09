@@ -86,7 +86,7 @@ test("an owner plans shifts, blocks time, books a walk-in from the board and can
   // The day at a glance, with a colour key in words.
   const summary = page.getByRole("region", { name: "Day summary" });
   await expect(summary.getByRole("definition").first()).toHaveText("1");
-  await expect(summary).toContainText("Expected takings");
+  await expect(summary).toContainText("expected takings");
   await expect(summary.getByRole("list", { name: "Colour key" })).toContainText("Added by the venue");
 
   // The same time can't be booked twice, even from the keyboard path that skips the board.

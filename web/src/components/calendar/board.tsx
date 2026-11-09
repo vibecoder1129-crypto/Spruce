@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -25,6 +34,8 @@ import {
   type WeekBoard,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+
+import { initials, staffColors, type StaffColor } from "./colors";
 import { useFieldErrors } from "@/lib/form-errors";
 
 // HLD 4.5: a staff day board in 15-minute slots. Forms offer 08:00 to 20:00; the board itself
@@ -63,7 +74,8 @@ export function DayBoard({ businessId }: { businessId: string }) {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [view, setView] = useState<View>("board");
-  const [who, setWho] = useState("all");
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [person, setPerson] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pick, setPick] = useState<Pick | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
@@ -152,13 +164,15 @@ export function DayBoard({ businessId }: { businessId: string }) {
   }
 
   const tz = board?.timezone ?? "UTC";
-  const columns = board?.staff.filter((s) => who === "all" || s.id === who) ?? [];
+  const columns = board?.staff.filter((s) => !hidden.includes(s.id)) ?? [];
+  const colors = staffColors(board?.staff ?? []);
   const needle = search.trim().toLowerCase();
   const matches = (b: Booking) =>
     !needle || b.client_name.toLowerCase().includes(needle) || b.service_name.toLowerCase().includes(needle);
   const shown = board?.bookings.filter((b) => matches(b) && columns.some((c) => c.id === b.staff_id)) ?? [];
   const canBook = (board?.can_book_staff_ids.length ?? 0) > 0;
-  const weekOf = (who !== "all" ? who : board?.staff[0]?.id) ?? null;
+  const weekOf = person ?? columns[0]?.id ?? board?.staff[0]?.id ?? null;
+  const monday = addDays(date, -((parseDate(date).getDay() + 6) % 7));
   const span = view === "week" ? 7 : 1;
   const firstBookable = board?.can_book_staff_ids[0] ?? "";
 
@@ -167,17 +181,32 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="mt-1 text-muted">
-            {view === "week"
-              ? `Week of ${longDate(addDays(date, -((parseDate(date).getDay() + 6) % 7)))}`
-              : longDate(date)}
+          <p className="mt-1 text-lg font-semibold text-spruce">
+            {view === "week" ? `Week of ${longDate(monday)}` : longDate(date)}
           </p>
         </div>
+        {board && board.locations.length > 1 && (
+          <Chips
+            label="Location"
+            items={board.locations.map((l) => ({ id: l.id, name: l.name }))}
+            isOn={(id) => id === board.location_id}
+            onPick={(id) => {
+              setHidden([]);
+              setPerson(null);
+              setPick(null);
+              setLocationId(id);
+            }}
+            icon="pin"
+            compact
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           {board?.can_block_time && (
             <Button
               variant="secondary"
-              onClick={() => setPick({ kind: "block", staffId: board.staff[0]?.id ?? "", time: "12:00" })}
+              onClick={() =>
+                setPick({ kind: "block", staffId: columns[0]?.id ?? board.staff[0]?.id ?? "", time: "12:00" })
+              }
             >
               Block time
             </Button>
@@ -193,65 +222,61 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div
         role="toolbar"
         aria-label="Calendar controls"
-        className="flex flex-wrap items-end gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3"
+        className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3 shadow-[var(--shadow-card)]"
       >
-        <div className="flex items-center gap-1">
-          <IconButton
-            label={view === "week" ? "Previous week" : "Previous day"}
-            onClick={() => setDate((d) => addDays(d, -span))}
-            flip
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1">
+            <IconButton
+              label={view === "week" ? "Previous week" : "Previous day"}
+              onClick={() => setDate((d) => addDays(d, -span))}
+              flip
+            />
+            <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
+              Today
+            </Button>
+            <IconButton
+              label={view === "week" ? "Next week" : "Next day"}
+              onClick={() => setDate((d) => addDays(d, span))}
+            />
+          </div>
+          <WeekStrip monday={monday} date={date} week={view === "week"} onPick={setDate} />
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
+          <Field
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="w-44"
           />
-          <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
-            Today
-          </Button>
-          <IconButton
-            label={view === "week" ? "Next week" : "Next day"}
-            onClick={() => setDate((d) => addDays(d, span))}
+          <Field
+            label="Search"
+            type="search"
+            value={search}
+            placeholder="Client or service"
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-52"
           />
         </div>
-        <Field
-          label="Date"
-          type="date"
-          value={date}
-          onChange={(e) => e.target.value && setDate(e.target.value)}
-          className="w-44"
-        />
-        {board && board.locations.length > 1 && (
-          <Select
-            label="Location"
-            value={board.location_id}
-            onChange={(e) => {
-              setWho("all");
-              setLocationId(e.target.value);
-            }}
-            className="w-48"
-          >
-            {board.locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
-        )}
         {board && board.staff.length > 1 && (
-          <Select label="Team" value={who} onChange={(e) => setWho(e.target.value)} className="w-44">
-            {view !== "week" && <option value="all">Everyone</option>}
-            {board.staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.display_name}
-              </option>
-            ))}
-          </Select>
+          <Chips
+            label={view === "week" ? "Whose week" : "Team"}
+            items={board.staff.map((s) => ({ id: s.id, name: s.display_name, color: colors.get(s.id) }))}
+            isOn={(id) => (view === "week" ? id === weekOf : !hidden.includes(id))}
+            onPick={(id) => {
+              if (view === "week") return setPerson(id);
+              // Hiding the last person shown would leave an empty board, so show everyone instead.
+              const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+              setHidden(next.length >= board.staff.length ? [] : next);
+            }}
+            all={
+              view === "week"
+                ? undefined
+                : { on: hidden.length === 0, onPick: () => setHidden([]), count: board.staff.length }
+            }
+          />
         )}
-        <Field
-          label="Search"
-          type="search"
-          value={search}
-          placeholder="Client or service"
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-52"
-        />
-        <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
       </div>
 
       <FormError message={error} />
@@ -287,6 +312,7 @@ export function DayBoard({ businessId }: { businessId: string }) {
                 setPick(p);
               }}
               onMove={move}
+              colors={colors}
             />
           )}
           {board && view === "week" && weekOf && (
@@ -297,10 +323,11 @@ export function DayBoard({ businessId }: { businessId: string }) {
               refreshed={refreshed}
               search={needle}
               onOpenDay={openDay}
+              color={weekOf ? colors.get(weekOf) : undefined}
             />
           )}
           {board && columns.length > 0 && view === "list" && (
-            <List board={board} bookings={shown} onPick={(id) => setPick({ kind: "booking", id })} />
+            <List board={board} bookings={shown} colors={colors} onPick={(id) => setPick({ kind: "booking", id })} />
           )}
         </div>
         {pick && board && (
@@ -358,6 +385,130 @@ function IconButton({ label, onClick, flip }: { label: string; onClick: () => vo
   );
 }
 
+/** A row of on/off buttons: locations, or which team members to show. */
+function Chips({
+  label,
+  items,
+  isOn,
+  onPick,
+  all,
+  icon,
+  compact,
+}: {
+  compact?: boolean;
+  label: string;
+  items: { id: string; name: string; color?: StaffColor }[];
+  isOn: (id: string) => boolean;
+  onPick: (id: string) => void;
+  all?: { on: boolean; onPick: () => void; count: number };
+  icon?: "pin";
+}) {
+  const chip =
+    "flex min-h-11 shrink-0 items-center whitespace-nowrap gap-2 rounded-full border px-3 text-sm font-semibold transition-colors";
+  return (
+    <div role="group" aria-label={label} className={cn("flex min-w-0 gap-2", compact ? "items-center" : "flex-col")}>
+      <span aria-hidden="true" className={cn("text-sm font-semibold", compact ? "text-muted" : "text-ink")}>
+        {label}
+      </span>
+      {/* One row that scrolls sideways, so 15 people don't push the board off the screen. */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {all && (
+          <button
+            type="button"
+            aria-pressed={all.on}
+            onClick={all.onPick}
+            className={cn(
+              chip,
+              all.on ? "border-ink bg-ink text-white" : "border-line-strong bg-surface hover:bg-mint",
+            )}
+          >
+            Everyone ({all.count})
+          </button>
+        )}
+        {items.map((item) => {
+          const on = isOn(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(item.id)}
+              className={cn(
+                chip,
+                on && !item.color && "border-ink bg-ink text-white",
+                on && item.color && "text-ink",
+                !on && "border-line-strong bg-surface hover:bg-mint",
+                !on && item.color && "bg-ground text-muted line-through",
+              )}
+              style={on && item.color ? { borderColor: item.color.accent, background: item.color.tint } : undefined}
+            >
+              {icon && <Icon name={icon} />}
+              {item.color && (
+                <span
+                  aria-hidden="true"
+                  className="flex size-6 items-center justify-center rounded-full text-[0.625rem] font-bold text-white"
+                  style={{ background: on ? item.color.accent : "var(--color-muted)" }}
+                >
+                  {initials(item.name)}
+                </span>
+              )}
+              {item.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Monday to Sunday around the chosen day, one tap to jump. */
+function WeekStrip({
+  monday,
+  date,
+  week,
+  onPick,
+}: {
+  monday: string;
+  date: string;
+  week: boolean;
+  onPick: (day: string) => void;
+}) {
+  const today = isoDate(new Date());
+  const short = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
+  const month = new Intl.DateTimeFormat("en-GB", { month: "long" });
+  return (
+    <div
+      role="group"
+      aria-label="Days this week"
+      className="flex min-w-0 basis-full gap-1 overflow-x-auto sm:flex-1 sm:basis-0"
+    >
+      {Array.from({ length: 7 }, (_, i) => addDays(monday, i)).map((day) => {
+        const on = week || day === date;
+        return (
+          <button
+            key={day}
+            type="button"
+            aria-pressed={day === date}
+            onClick={() => onPick(day)}
+            className={cn(
+              "relative flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center rounded-[var(--radius-control)] text-sm transition-colors",
+              day === date ? "bg-spruce text-white" : on ? "bg-mint text-ink" : "text-ink hover:bg-mint",
+            )}
+          >
+            <span className="text-xs font-semibold uppercase">{short.format(parseDate(day))}</span>{" "}
+            <span className="text-lg leading-tight font-bold tabular-nums">{parseDate(day).getDate()}</span>
+            <span className="sr-only"> {month.format(parseDate(day))}</span>
+            <span
+              aria-hidden="true"
+              className={cn("size-1.5 rounded-full", day === today ? (day === date ? "bg-white" : "bg-spruce") : "")}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Toggle<T extends string>({
   label,
   value,
@@ -396,18 +547,21 @@ function Toggle<T extends string>({
 
 type Kind = "online" | "walk-in" | "pending" | "done" | "no-show";
 
-/** Colour plus a word for each kind of appointment, so colour never carries meaning alone. */
-const KIND: Record<Kind, { label: string; block: string; swatch: string }> = {
-  online: { label: "Booked online", block: "border-spruce bg-mint-strong", swatch: "border-spruce bg-mint-strong" },
-  "walk-in": {
-    label: "Added by the venue",
-    block: "border-spruce bg-surface ring-1 ring-line-strong",
-    swatch: "border-spruce bg-surface",
-  },
-  pending: { label: "Waiting to confirm", block: "border-ink bg-warn-soft", swatch: "border-ink bg-warn-soft" },
-  done: { label: "Done", block: "border-line-strong bg-ground text-muted", swatch: "border-line-strong bg-ground" },
-  "no-show": { label: "No-show", block: "border-danger bg-danger-soft", swatch: "border-danger bg-danger-soft" },
+/** Status is a word and a mark on the block; colour belongs to the team member. */
+const KIND: Record<Kind, { label: string; mark: string }> = {
+  online: { label: "Booked online", mark: "●" },
+  "walk-in": { label: "Added by the venue", mark: "○" },
+  pending: { label: "Waiting to confirm", mark: "…" },
+  done: { label: "Done", mark: "✓" },
+  "no-show": { label: "No-show", mark: "✕" },
 };
+
+/** A block's colours: the person's tint while it's still to come, plain once it's over. */
+function blockStyle(kind: Kind, color: StaffColor | undefined): CSSProperties {
+  const accent = color?.accent ?? "var(--color-spruce)";
+  if (kind === "done" || kind === "no-show") return { borderColor: accent, background: "var(--color-surface)" };
+  return { borderColor: accent, background: color?.tint ?? "var(--color-mint-strong)" };
+}
 
 function kindOf(b: Booking): Kind {
   if (b.status === "completed") return "done";
@@ -468,19 +622,26 @@ function Summary({ board, columns, bookings }: { board: Board; columns: Board["s
   ];
   if (noShows) items.push({ label: "No-shows", value: String(noShows) });
   return (
-    <section aria-label="Day summary" className="flex flex-col gap-3">
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <section
+      aria-label="Day summary"
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[var(--radius-control)] bg-mint px-4 py-2.5"
+    >
+      <dl className="flex flex-wrap gap-x-5 gap-y-1">
         {items.map((i) => (
-          <div key={i.label} className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3">
-            <dt className="text-xs font-semibold tracking-[var(--tracking-label)] text-muted uppercase">{i.label}</dt>
-            <dd className="text-lg font-bold tabular-nums">{i.value}</dd>
+          // The value reads first on screen; the term still comes first for screen readers.
+          <div key={i.label} className="flex flex-row-reverse items-baseline gap-1.5">
+            <dt className="text-sm text-muted">{i.label.toLowerCase()}</dt>
+            <dd className="text-lg font-bold text-spruce tabular-nums">{i.value}</dd>
           </div>
         ))}
       </dl>
-      <ul aria-label="Colour key" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+      <ul aria-label="Colour key" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <li>Colour = team member.</li>
         {(Object.keys(KIND) as Kind[]).map((k) => (
           <li key={k} className="flex items-center gap-1.5">
-            <span aria-hidden="true" className={cn("h-3.5 w-6 rounded-sm border-l-4", KIND[k].swatch)} />
+            <span aria-hidden="true" className="font-bold text-ink">
+              {KIND[k].mark}
+            </span>
             {KIND[k].label}
           </li>
         ))}
@@ -498,7 +659,9 @@ function Grid({
   onSlot,
   onPick,
   onMove,
+  colors,
 }: {
+  colors: Map<string, StaffColor>;
   board: Board;
   columns: Board["staff"];
   bookings: Booking[];
@@ -590,11 +753,29 @@ function Grid({
             <section
               key={col.id}
               aria-label={col.display_name}
-              className="min-w-44 flex-1 border-r border-line last:border-r-0"
+              className={cn(
+                "flex-1 border-r border-line last:border-r-0",
+                columns.length > 6 ? "min-w-36" : "min-w-44",
+              )}
             >
-              <header className="sticky top-0 z-10 flex h-16 flex-col justify-center border-b border-line bg-surface px-3">
-                <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
-                <p className="text-xs text-muted">{col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}</p>
+              <header
+                className="sticky top-0 z-10 flex h-16 items-center gap-2.5 border-t-4 border-b border-b-line bg-surface px-3"
+                style={{ borderTopColor: colors.get(col.id)?.accent }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: colors.get(col.id)?.accent }}
+                >
+                  {initials(col.display_name)}
+                </span>
+                <span className="min-w-0">
+                  <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
+                  <p className="text-xs text-muted">
+                    {col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}
+                    {own.length > 0 && ` · ${own.filter((b) => LIVE.has(b.status)).length} booked`}
+                  </p>
+                </span>
               </header>
               <div
                 data-opens={OPEN}
@@ -671,13 +852,18 @@ function Grid({
                         onPick({ kind: "booking", id: b.id });
                       }}
                       className={cn(
-                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
-                        KIND[kind].block,
+                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
+                        kind === "pending" && "border-y border-r border-dashed",
+                        (kind === "done" || kind === "no-show") &&
+                          "border-y border-r border-y-line border-r-line text-muted",
                       )}
-                      style={{ top: top(start), height: h - 2 }}
+                      style={{ top: top(start), height: h - 2, ...blockStyle(kind, colors.get(b.staff_id)) }}
                     >
-                      <span className={cn("block font-bold", kind === "done" ? "text-muted" : "text-spruce")}>
-                        {clock(start)} {b.client_name}
+                      <span className="flex items-baseline gap-1 font-bold">
+                        <span aria-hidden="true">{KIND[kind].mark}</span>
+                        <span className={cn("truncate", kind === "no-show" && "line-through")}>
+                          {clock(start)} {b.client_name}
+                        </span>
                       </span>{" "}
                       <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>
                         {b.service_name} · {KIND[kind].label}
@@ -779,7 +965,9 @@ function WeekView({
   refreshed,
   search,
   onOpenDay,
+  color,
 }: {
+  color: StaffColor | undefined;
   businessId: string;
   staffId: string;
   date: string;
@@ -809,7 +997,16 @@ function WeekView({
 
   return (
     <section aria-label={`${week.staff.display_name}'s week`} className="flex flex-col gap-3">
-      <h2 className="text-xl font-bold">{week.staff.display_name}&apos;s week</h2>
+      <h2 className="flex items-center gap-2.5 text-xl font-bold">
+        <span
+          aria-hidden="true"
+          className="flex size-9 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{ background: color?.accent }}
+        >
+          {initials(week.staff.display_name)}
+        </span>
+        {week.staff.display_name}&apos;s week
+      </h2>
       <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {week.days.map((d) => {
           const own = week.bookings.filter(
@@ -865,12 +1062,16 @@ function WeekView({
                           type="button"
                           onClick={() => onOpenDay(d.date, b.id)}
                           className={cn(
-                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs hover:shadow-md",
-                            KIND[kind].block,
+                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink hover:shadow-md",
+                            (kind === "done" || kind === "no-show") && "text-muted",
                           )}
+                          style={blockStyle(kind, color)}
                         >
-                          <span className="font-bold">
-                            {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                          <span className="flex items-baseline gap-1 font-bold">
+                            <span aria-hidden="true">{KIND[kind].mark}</span>
+                            <span className={cn(kind === "no-show" && "line-through")}>
+                              {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                            </span>
                           </span>
                           <span className="truncate">
                             {b.service_name} · {KIND[kind].label}
@@ -892,7 +1093,17 @@ function WeekView({
   );
 }
 
-function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; onPick: (id: string) => void }) {
+function List({
+  board,
+  bookings,
+  colors,
+  onPick,
+}: {
+  board: Board;
+  bookings: Booking[];
+  colors: Map<string, StaffColor>;
+  onPick: (id: string) => void;
+}) {
   const name = (id: string) => board.staff.find((s) => s.id === id)?.display_name ?? "";
   if (bookings.length === 0) {
     return (
@@ -942,7 +1153,16 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
                 {b.service_name}
                 <span className="block text-xs text-muted">{KIND[kindOf(b)].label}</span>
               </td>
-              <td className="px-4 py-2">{name(b.staff_id)}</td>
+              <td className="px-4 py-2">
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="size-3 shrink-0 rounded-full"
+                    style={{ background: colors.get(b.staff_id)?.accent }}
+                  />
+                  {name(b.staff_id)}
+                </span>
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{formatPrice(b.price_minor, b.currency)}</td>
             </tr>
           ))}
