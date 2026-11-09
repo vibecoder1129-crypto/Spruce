@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -22,6 +22,7 @@ import {
   type BookingDetail,
   type DayBoard as Board,
   type TimeOff,
+  type WeekBoard,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
@@ -35,8 +36,9 @@ const ROWS = (CLOSE - OPEN) / STEP;
 const ROW = 30;
 const QUARTERS = Array.from({ length: ROWS + 1 }, (_, i) => clock(OPEN + i * STEP));
 const LIVE = new Set(["pending", "confirmed", "completed"]);
+const POLL_MS = 30_000; // new online bookings appear without a refresh
 
-type View = "board" | "list";
+type View = "board" | "week" | "list";
 type Pick =
   | { kind: "booking"; id: string }
   | { kind: "time-off"; block: TimeOff }
@@ -74,12 +76,74 @@ export function DayBoard({ businessId }: { businessId: string }) {
     return api<Board>(`/businesses/${businessId}/calendar?${query}`);
   }, [businessId, date, locationId]);
   const load = async () => setBoard(await fetchBoard());
+  const [refreshed, setRefreshed] = useState(0);
+  const shownBoard = useRef<Board | null>(null);
+  useEffect(() => {
+    shownBoard.current = board;
+  }, [board]);
 
   useEffect(() => {
     fetchBoard()
       .then(setBoard)
       .catch((e: unknown) => setError(message(e)));
   }, [fetchBoard]);
+
+  // Live updates: refetch while the tab is visible, and say when an online booking arrives.
+  useEffect(() => {
+    let live = true;
+    async function poll() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const next = await fetchBoard();
+        if (!live) return;
+        const prev = shownBoard.current;
+        if (prev && prev.date === next.date && prev.location_id === next.location_id) {
+          const seen = new Set(prev.bookings.map((b) => b.id));
+          const fresh = next.bookings.filter((b) => !seen.has(b.id) && b.source === "consumer");
+          if (fresh.length === 1) {
+            const b = fresh[0];
+            setNotice(`New online booking: ${clock(minutesAt(b.starts_at, next.timezone))} ${b.client_name}.`);
+          } else if (fresh.length > 1) {
+            setNotice(`${fresh.length} new online bookings.`);
+          }
+        }
+        setBoard(next);
+        setRefreshed((n) => n + 1);
+      } catch {
+        // A missed refresh is retried on the next tick.
+      }
+    }
+    const timer = setInterval(poll, POLL_MS);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [fetchBoard]);
+
+  /** Drag and drop on the board. The API re-checks the shift, blocked time and overlaps. */
+  async function move(id: string, staffId: string, minutes: number) {
+    const booking = board?.bookings.find((b) => b.id === id);
+    if (!booking || !board) return;
+    const time = clock(minutes);
+    if (staffId === booking.staff_id && time === clock(minutesAt(booking.starts_at, board.timezone))) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/bookings/${id}`, { method: "PATCH", body: { start: `${board.date}T${time}`, staff_id: staffId } });
+      const person = board.staff.find((s) => s.id === staffId)?.display_name ?? "";
+      await changed(`Moved ${booking.client_name} to ${time} with ${person}.`);
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+
+  function openDay(day: string, bookingId?: string) {
+    setDate(day);
+    setView("board");
+    setPick(bookingId ? { kind: "booking", id: bookingId } : null);
+  }
 
   async function changed(text: string) {
     setPick(null);
@@ -94,6 +158,8 @@ export function DayBoard({ businessId }: { businessId: string }) {
     !needle || b.client_name.toLowerCase().includes(needle) || b.service_name.toLowerCase().includes(needle);
   const shown = board?.bookings.filter((b) => matches(b) && columns.some((c) => c.id === b.staff_id)) ?? [];
   const canBook = (board?.can_book_staff_ids.length ?? 0) > 0;
+  const weekOf = (who !== "all" ? who : board?.staff[0]?.id) ?? null;
+  const span = view === "week" ? 7 : 1;
   const firstBookable = board?.can_book_staff_ids[0] ?? "";
 
   return (
@@ -101,7 +167,11 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="mt-1 text-muted">{longDate(date)}</p>
+          <p className="mt-1 text-muted">
+            {view === "week"
+              ? `Week of ${longDate(addDays(date, -((parseDate(date).getDay() + 6) % 7)))}`
+              : longDate(date)}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {board?.can_block_time && (
@@ -126,11 +196,18 @@ export function DayBoard({ businessId }: { businessId: string }) {
         className="flex flex-wrap items-end gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3"
       >
         <div className="flex items-center gap-1">
-          <IconButton label="Previous day" onClick={() => setDate((d) => addDays(d, -1))} flip />
+          <IconButton
+            label={view === "week" ? "Previous week" : "Previous day"}
+            onClick={() => setDate((d) => addDays(d, -span))}
+            flip
+          />
           <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
             Today
           </Button>
-          <IconButton label="Next day" onClick={() => setDate((d) => addDays(d, 1))} />
+          <IconButton
+            label={view === "week" ? "Next week" : "Next day"}
+            onClick={() => setDate((d) => addDays(d, span))}
+          />
         </div>
         <Field
           label="Date"
@@ -158,7 +235,7 @@ export function DayBoard({ businessId }: { businessId: string }) {
         )}
         {board && board.staff.length > 1 && (
           <Select label="Team" value={who} onChange={(e) => setWho(e.target.value)} className="w-44">
-            <option value="all">Everyone</option>
+            {view !== "week" && <option value="all">Everyone</option>}
             {board.staff.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.display_name}
@@ -174,11 +251,11 @@ export function DayBoard({ businessId }: { businessId: string }) {
           onChange={(e) => setSearch(e.target.value)}
           className="w-52"
         />
-        <Toggle label="View" value={view} onChange={setView} options={{ board: "Board", list: "List" }} />
+        <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
       </div>
 
       <FormError message={error} />
-      {board && columns.length > 0 && <Summary board={board} columns={columns} bookings={shown} />}
+      {board && columns.length > 0 && view !== "week" && <Summary board={board} columns={columns} bookings={shown} />}
       {notice && (
         <p
           role="status"
@@ -209,6 +286,17 @@ export function DayBoard({ businessId }: { businessId: string }) {
                 setNotice(null);
                 setPick(p);
               }}
+              onMove={move}
+            />
+          )}
+          {board && view === "week" && weekOf && (
+            <WeekView
+              businessId={businessId}
+              staffId={weekOf}
+              date={date}
+              refreshed={refreshed}
+              search={needle}
+              onOpenDay={openDay}
             />
           )}
           {board && columns.length > 0 && view === "list" && (
@@ -409,6 +497,7 @@ function Grid({
   slot,
   onSlot,
   onPick,
+  onMove,
 }: {
   board: Board;
   columns: Board["staff"];
@@ -417,6 +506,7 @@ function Grid({
   slot: Slot | null;
   onSlot: (s: Slot | null) => void;
   onPick: (p: Pick) => void;
+  onMove: (id: string, staffId: string, minutes: number) => void;
 }) {
   const row = ROW;
   const tz = board.timezone;
@@ -456,6 +546,16 @@ function Grid({
   }
 
   const canBook = (id: string) => board.can_book_staff_ids.includes(id);
+  const grab = useRef(0); // where on the block it was picked up, so it lands where it's dropped
+
+  function drop(event: DragEvent<HTMLDivElement>, staffId: string) {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/x-booking");
+    if (!id) return;
+    const y = event.clientY - event.currentTarget.getBoundingClientRect().top - grab.current;
+    const minutes = OPEN + Math.max(0, Math.round(y / row)) * STEP;
+    onMove(id, staffId, minutes);
+  }
 
   return (
     <div
@@ -505,6 +605,8 @@ function Grid({
                 }}
                 // Mouse shortcut only. Keyboard users have the New appointment and Block time buttons.
                 onClick={clickable ? (e) => clickSlot(e, col.id) : undefined}
+                onDragOver={canBook(col.id) ? (e) => e.preventDefault() : undefined}
+                onDrop={canBook(col.id) ? (e) => drop(e, col.id) : undefined}
               >
                 {shiftStart !== null && shiftEnd !== null && (
                   <div
@@ -552,10 +654,18 @@ function Grid({
                   if (end <= OPEN || start >= CLOSE) return null;
                   const h = Math.max(row, top(end) - top(start));
                   const kind = kindOf(b);
+                  const movable = (b.status === "pending" || b.status === "confirmed") && canBook(b.staff_id);
                   return (
                     <button
                       key={b.id}
                       type="button"
+                      // Mouse shortcut only. Everyone can move it with "Edit or move" in the panel.
+                      draggable={movable}
+                      onDragStart={(e) => {
+                        grab.current = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                        e.dataTransfer.setData("text/x-booking", b.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onPick({ kind: "booking", id: b.id });
@@ -658,6 +768,127 @@ function SlotMenu({
         Close
       </button>
     </div>
+  );
+}
+
+/** One person's week. Each day opens on the day board; appointments open there too. */
+function WeekView({
+  businessId,
+  staffId,
+  date,
+  refreshed,
+  search,
+  onOpenDay,
+}: {
+  businessId: string;
+  staffId: string;
+  date: string;
+  refreshed: number;
+  search: string;
+  onOpenDay: (day: string, bookingId?: string) => void;
+}) {
+  const monday = addDays(date, -((parseDate(date).getDay() + 6) % 7));
+  const [week, setWeek] = useState<WeekBoard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api<WeekBoard>(`/businesses/${businessId}/calendar/week?staff_id=${staffId}&week=${monday}`)
+      .then((w) => live && (setWeek(w), setError(null)))
+      .catch((e: unknown) => live && setError(message(e)));
+    return () => {
+      live = false;
+    };
+  }, [businessId, staffId, monday, refreshed]);
+
+  if (error) return <FormError message={error} />;
+  if (!week || week.week !== monday || week.staff.id !== staffId) return <p className="text-muted">Loading…</p>;
+  const tz = week.timezone;
+  const today = isoDate(new Date());
+  const dayName = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <section aria-label={`${week.staff.display_name}'s week`} className="flex flex-col gap-3">
+      <h2 className="text-xl font-bold">{week.staff.display_name}&apos;s week</h2>
+      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {week.days.map((d) => {
+          const own = week.bookings.filter(
+            (b) =>
+              dayAt(b.starts_at, tz) === d.date &&
+              (!search ||
+                b.client_name.toLowerCase().includes(search) ||
+                b.service_name.toLowerCase().includes(search)),
+          );
+          const live = own.filter((b) => LIVE.has(b.status));
+          const booked = live.reduce((sum, b) => sum + minutesAt(b.ends_at, tz) - minutesAt(b.starts_at, tz), 0);
+          const blocked = week.time_off
+            .filter((t) => dayAt(t.starts_at, tz) <= d.date && dayAt(t.ends_at, tz) >= d.date)
+            .reduce((sum, t) => {
+              const from = dayAt(t.starts_at, tz) < d.date ? 0 : minutesAt(t.starts_at, tz);
+              const to = dayAt(t.ends_at, tz) > d.date ? 24 * 60 : minutesAt(t.ends_at, tz);
+              return sum + Math.max(0, to - from);
+            }, 0);
+          const working = d.shift ? toMinutes(d.shift.ends) - toMinutes(d.shift.starts) : 0;
+          const free = Math.max(0, working - booked - blocked);
+          return (
+            <li
+              key={d.date}
+              className={cn(
+                "flex flex-col gap-2 rounded-[var(--radius-card)] border bg-surface p-3",
+                d.date === today ? "border-spruce" : "border-line",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onOpenDay(d.date)}
+                className="flex min-h-11 flex-col items-start rounded-lg text-left hover:text-spruce"
+              >
+                <span className="font-bold">
+                  {dayName.format(parseDate(d.date))}
+                  {d.date === today && <span className="text-spruce"> · Today</span>}
+                </span>
+                <span className="text-xs text-muted">
+                  {d.shift
+                    ? `${d.shift.starts}–${d.shift.ends} · ${free ? `${formatDuration(free)} free` : "Full"}`
+                    : "Day off"}
+                </span>
+              </button>
+              {own.length === 0 ? (
+                <p className="text-sm text-muted">{d.shift ? "No appointments" : ""}</p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {own.map((b) => {
+                    const kind = kindOf(b);
+                    return (
+                      <li key={b.id}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenDay(d.date, b.id)}
+                          className={cn(
+                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs hover:shadow-md",
+                            KIND[kind].block,
+                          )}
+                        >
+                          <span className="font-bold">
+                            {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                          </span>
+                          <span className="truncate">
+                            {b.service_name} · {KIND[kind].label}
+                          </span>
+                          {b.client_flags.includes("risk") && (
+                            <span className="font-bold text-danger">{FLAG_TEXT.risk}</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 

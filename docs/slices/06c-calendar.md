@@ -19,6 +19,30 @@ move and live updates.
 - **Day summary:** appointments, booked time, free time and expected takings for the people shown,
   plus no-shows when there are any.
 
+## B: week view, drag to move, live updates
+
+**API**
+
+| Method and path | Who | Notes |
+| --- | --- | --- |
+| `GET /businesses/{id}/calendar/week?staff_id=&week=` | Owner, staff with `calendar.view` | One person's Monday-to-Sunday: shifts, appointments (with client flags) and blocked time |
+
+Rules the tests cover: the week starts on a Monday (422 otherwise). Staff need `calendar.view` (403),
+and without `calendar.team` they see only their own week (404 for a colleague, like the day board).
+Another business's staff is a 404, signed out is 401, and customers get 403. Cancelled bookings
+leave the week.
+
+**Web**
+
+- **Week view:** Day / Week / List. Week shows one person (from the Team filter) as seven day cards
+  with shift hours, free time and appointments. A day or an appointment opens on the day board.
+- **Drag to move:** drag an appointment to another time or person on the day board. It uses the
+  existing `PATCH /bookings/{id}`, so the shift, blocked time, service and the EXCLUDE constraint are
+  all re-checked. Dragging is a mouse shortcut. "Edit or move" in the panel does the same for
+  keyboard, touch and screen-reader users (WCAG 2.5.7).
+- **Live updates:** the board refetches every 30 seconds while the tab is visible, and when you come
+  back to the tab. A new online booking is announced in the status line.
+
 ## Acceptance
 
 - e2e: the summary and colour key show after booking a walk-in. Slot clicks follow the board's

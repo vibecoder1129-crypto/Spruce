@@ -176,6 +176,22 @@ class CalendarOut(BaseModel):
     can_mark_staff_ids: list[uuid.UUID]  # whose started visits the caller may mark done or no-show
 
 
+class WeekDay(BaseModel):
+    date: date
+    shift: DayShift | None
+
+
+class WeekOut(BaseModel):
+    """One person's week (slice 6c)."""
+
+    week: date
+    timezone: str
+    staff: Column
+    days: list[WeekDay]
+    bookings: list[BookingOut]
+    time_off: list[TimeOffOut]
+
+
 # --- customer booking (slice 5b) -------------------------------------------------------------
 
 

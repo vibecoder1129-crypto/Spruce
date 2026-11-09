@@ -69,7 +69,17 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
   await expect(c.getByRole("definition").filter({ hasText: policy })).toBeVisible();
   await c.getByLabel("Your name").fill("Ana Ozola");
   await expectAccessible(c);
+  // The owner has that day open on the calendar, and the booking arrives on its own.
+  const riga = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Riga" }).format(new Date());
+  const inTwoDays = new Date(`${riga}T12:00:00Z`);
+  inTwoDays.setUTCDate(inTwoDays.getUTCDate() + 2);
+  await page.goto("/dashboard/calendar");
+  await page.getByLabel("Date").fill(inTwoDays.toISOString().slice(0, 10));
+  await expect(page.getByRole("region", { name: "Day summary" }).getByRole("definition").first()).toHaveText("0");
   await c.getByRole("button", { name: "Confirm booking" }).click();
+  await expect(c.getByRole("heading", { name: /You're booked/ })).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByRole("status")).toHaveText("New online booking: 09:00 Ana Ozola.");
   await c.getByRole("link", { name: "See your bookings" }).click();
   const upcoming = c.getByRole("region", { name: "Upcoming" });
   await expect(upcoming).toContainText(policy);

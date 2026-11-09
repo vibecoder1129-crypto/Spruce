@@ -130,6 +130,15 @@ export type DayBoard = {
   can_mark_staff_ids: string[];
 };
 
+export type WeekBoard = {
+  week: string;
+  timezone: string;
+  staff: { id: string; display_name: string; title: string };
+  days: { date: string; shift: { starts: string; ends: string } | null }[];
+  bookings: Booking[];
+  time_off: TimeOff[];
+};
+
 /** "YYYY-MM-DD" for a calendar date, without time zone surprises. */
 export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

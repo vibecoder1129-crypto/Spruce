@@ -36,6 +36,8 @@ from app.booking.schemas import (
     TimeOffIn,
     TimeOffOut,
     WalkInIn,
+    WeekDay,
+    WeekOut,
 )
 from app.business.models import Business, Location, StaffProfile
 from app.business.router import Owner, _owned
@@ -699,4 +701,70 @@ async def day_board(
         can_block_time=actor.is_owner,
         can_book_staff_ids=bookable,
         can_mark_staff_ids=[s.id for s in staff if actor.marks(s.id)],
+    )
+
+
+@router.get("/businesses/{business_id}/calendar/week")
+async def week_board(
+    business_id: uuid.UUID, staff_id: uuid.UUID, week: Week, auth: FullySignedIn, db: Db
+) -> WeekOut:
+    """One person's week: shifts, appointments and blocked time, Monday to Sunday."""
+    monday = _monday(week)
+    actor = await _actor(db, auth, business_id, "Business not found.")
+    if actor.staff is not None and Flag.calendar_view not in actor.flags:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="You can't see the calendar.")
+    staff = await db.scalar(
+        select(StaffProfile).where(
+            StaffProfile.id == staff_id, StaffProfile.business_id == business_id
+        )
+    )
+    if staff is None or not actor.sees(staff.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Team member not found.")
+    zone = await _zone(db, staff)
+    tz = ZoneInfo(zone)
+    start = datetime.combine(monday, time(), tz).astimezone(UTC)
+    end = datetime.combine(monday + timedelta(days=7), time(), tz).astimezone(UTC)
+    shifts = {
+        s.day: s
+        for s in await db.scalars(
+            select(WeeklyShift).where(
+                WeeklyShift.staff_id == staff.id, WeeklyShift.week_start == monday
+            )
+        )
+    }
+    rows = (
+        await db.execute(
+            select(Booking, Service.name)
+            .join(Service, Service.id == Booking.service_id)
+            .where(
+                Booking.staff_id == staff.id,
+                Booking.status != BookingStatus.cancelled,
+                Booking.starts_at < end,
+                Booking.ends_at > start,
+            )
+            .order_by(Booking.starts_at)
+        )
+    ).all()
+    flags = await _flags(db, [b for b, _ in rows])
+    blocks = await db.scalars(
+        select(TimeOff)
+        .where(TimeOff.staff_id == staff.id, TimeOff.starts_at < end, TimeOff.ends_at > start)
+        .order_by(TimeOff.starts_at)
+    )
+    days = []
+    for offset in range(7):
+        shift = shifts.get(offset)
+        days.append(
+            WeekDay(
+                date=monday + timedelta(days=offset),
+                shift=DayShift(starts=shift.starts, ends=shift.ends) if shift else None,
+            )
+        )
+    return WeekOut(
+        week=monday,
+        timezone=zone,
+        staff=Column(id=staff.id, display_name=staff.display_name, title=staff.title, shift=None),
+        days=days,
+        bookings=[_booking_out(b, name, flags.get(b.id, [])) for b, name in rows],
+        time_off=[_time_off_out(b) for b in blocks],
     )
