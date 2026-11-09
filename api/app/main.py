@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
+from app.booking.checkout import router as checkout_router
 from app.booking.customer import router as customer_router
 from app.booking.forms import router as booking_forms_router
 from app.booking.reminders import router as reminders_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(booking_router)
     app.include_router(customer_router)
     app.include_router(booking_forms_router)
+    app.include_router(checkout_router)
     app.include_router(waitlist_router)
     app.include_router(reminders_router)
     app.include_router(support_router)

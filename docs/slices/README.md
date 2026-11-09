@@ -14,7 +14,7 @@ spec first, tests first (with the 401, 403 and 404 denials), and the smallest co
 | 11 | Installable app (PWA) | Built |
 | 12 | Rooms and equipment | Built |
 | 13 | Consultation forms and patch tests | Built |
-| 14 | Checkout, commissions and tips | |
+| 14 | Checkout, commissions and tips | Built |
 | 15 | Product stock | |
 | 16 | Gift cards, packages and memberships | |
 | 17 | Email and SMS marketing | |

@@ -19,6 +19,7 @@ from app.booking.models import (
     BookingSource,
     BookingStatus,
     CustomerProfile,
+    Sale,
     TimeOff,
     WeeklyShift,
 )
@@ -33,6 +34,7 @@ from app.booking.schemas import (
     DayShift,
     MyBooking,
     PlaceOut,
+    SaleOut,
     ShiftOut,
     ShiftsIn,
     TimeOffIn,
@@ -324,7 +326,13 @@ async def _detail(db: AsyncSession, booking: Booking) -> BookingDetail:
         patch_test_at=await consult.patch_test_at(
             db, booking.business_id, booking.consumer_user_id
         ),
+        sale=await _sale(db, booking.id),
     )
+
+
+async def _sale(db: AsyncSession, booking_id: uuid.UUID) -> SaleOut | None:
+    sale = await db.scalar(select(Sale).where(Sale.booking_id == booking_id))
+    return SaleOut.model_validate(sale, from_attributes=True) if sale else None
 
 
 async def _bookable(

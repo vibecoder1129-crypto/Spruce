@@ -81,8 +81,8 @@ export function VisitFormPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{form?.name ?? "Before your visit"}</h1>
           <p className="mt-1 text-muted">
-            The venue asks this before your visit. Only the venue owner and the person doing your visit see your answers,
-            and you can change them until it starts.
+            The venue asks this before your visit. Only the venue owner and the person doing your visit see your
+            answers, and you can change them until it starts.
           </p>
         </div>
         <FormError message={error} />
@@ -166,7 +166,8 @@ export function VisitFormPage() {
                   className="mt-0.5 size-5 shrink-0 accent-spruce"
                 />
                 <span>
-                  I agree to the venue keeping these answers with this booking, to make my visit safe.
+                  I agree to the venue keeping these answers with this booking, to make my visit safe. To have them
+                  removed, ask the venue.
                   <span className="font-normal text-muted">
                     {" "}
                     <span aria-hidden="true">*</span>

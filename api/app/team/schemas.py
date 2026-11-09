@@ -51,6 +51,7 @@ class StaffPatch(Strict):
     title: Title | None = None
     location_id: uuid.UUID | None = None
     active: bool | None = None
+    commission_percent: Annotated[int, Field(ge=0, le=100, strict=True)] | None = None
 
 
 class StaffServicesIn(Strict):

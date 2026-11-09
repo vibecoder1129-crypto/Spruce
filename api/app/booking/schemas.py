@@ -15,7 +15,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.booking.models import BookingSource, BookingStatus
+from app.booking.models import BookingSource, BookingStatus, PaymentMethod
 from app.business.schemas import Short, Strict
 from app.team.schemas import Question
 
@@ -131,6 +131,13 @@ class BookingOut(BaseModel):
     client_flags: list[str]  # "risk", "regular": this venue's view of the customer
 
 
+class SaleOut(BaseModel):
+    price_minor: int
+    tip_minor: int
+    method: PaymentMethod
+    currency: str
+
+
 # Whether a visit's consultation form is still to be filled in (slice 13).
 FormState = Literal["none", "to_fill", "filled"]
 
@@ -143,6 +150,7 @@ class BookingDetail(BookingOut):
     form: FormState
     needs_patch_test: bool
     patch_test_at: datetime | None  # this customer's last one at this venue
+    sale: SaleOut | None  # what was paid, once checked out (slice 14)
 
 
 class DayShift(BaseModel):
@@ -304,3 +312,32 @@ class BookingFormOut(BaseModel):
     questions: list[Question]
     answers: list[str | bool] | None
     submitted_at: datetime | None
+
+
+Money = Annotated[int, Field(ge=0, le=10_000_000, strict=True)]
+
+
+class CheckoutIn(Strict):
+    price_minor: Money
+    tip_minor: Money
+    method: PaymentMethod
+
+
+class TakingsTotals(BaseModel):
+    visits: int
+    sales_minor: int
+    tips_minor: int
+    commission_minor: int
+
+
+class TakingsRow(TakingsTotals):
+    staff_id: uuid.UUID
+    display_name: str
+
+
+class TakingsOut(BaseModel):
+    currency: str
+    rows: list[TakingsRow]
+    totals: TakingsTotals
+    # Amount plus tip per way of paying, to check against the till and the card machine.
+    by_method: dict[PaymentMethod, int]
