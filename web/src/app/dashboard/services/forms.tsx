@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -19,7 +19,6 @@ const MAX_QUESTIONS = 30;
  */
 export function Forms({ businessId, services }: { businessId: string; services: Service[] }) {
   const [forms, setForms] = useState<ConsultationForm[] | null>(null);
-  const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -27,10 +26,7 @@ export function Forms({ businessId, services }: { businessId: string; services: 
 
   const load = useCallback(
     () =>
-      api<ConsultationForm[]>(`/businesses/${businessId}/forms`).then((f) => {
-        setForms(f);
-        setVersion((v) => v + 1);
-      }),
+      api<ConsultationForm[]>(`/businesses/${businessId}/forms`).then(setForms),
     [businessId],
   );
 
@@ -86,12 +82,16 @@ export function Forms({ businessId, services }: { businessId: string; services: 
       {forms === null && !error && <p className="text-muted">Loading…</p>}
       {forms?.map((f) => (
         <FormCard
-          key={`${f.id}-${version}`}
+          // Remounts only when its own ticks changed on the server, so unsaved edits elsewhere stay.
+          key={`${f.id}-${f.service_ids.join()}`}
           form={f}
           services={services}
+          elsewhere={Object.fromEntries(
+            forms.filter((o) => o.id !== f.id).flatMap((o) => o.service_ids.map((id) => [id, o.name])),
+          )}
           onSaved={async (saved) => {
             setNotice(`Saved ${saved.name}.`);
-            // Ticking a service here moves it off any other form, so reload them all.
+            // Ticking a service here moves it off any other form, so refresh the ticks.
             await load().catch((e: unknown) => setError(message(e)));
           }}
           onRemoved={() => {
@@ -126,11 +126,14 @@ export function Forms({ businessId, services }: { businessId: string; services: 
 function FormCard({
   form,
   services,
+  elsewhere,
   onSaved,
   onRemoved,
 }: {
   form: ConsultationForm;
   services: Service[];
+  /** Services on another form, with that form's name. */
+  elsewhere: Record<string, string>;
   onSaved: (form: ConsultationForm) => Promise<void>;
   onRemoved: () => void;
 }) {
@@ -139,6 +142,7 @@ function FormCard({
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const titleId = `form-${form.id}`;
+  const addRef = useRef<HTMLButtonElement>(null);
 
   function change(index: number, next: Partial<Question>) {
     setQuestions((qs) => qs.map((q, i) => (i === index ? { ...q, ...next } : q)));
@@ -166,6 +170,7 @@ function FormCard({
       await onSaved(saved);
     } catch (e) {
       setError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -198,19 +203,21 @@ function FormCard({
         <legend className="text-sm font-semibold">Questions</legend>
         <ol className="flex flex-col gap-3">
           {questions.map((q, i) => (
-            <li key={i} className="flex flex-wrap items-end gap-2 rounded-[var(--radius-control)] bg-ground p-3">
+            <li
+              key={i}
+              className="grid grid-cols-[1fr_auto] items-end gap-2 rounded-[var(--radius-control)] bg-ground p-3 sm:grid-cols-[1fr_9rem_auto]"
+            >
               <Field
                 label={`Question ${i + 1}`}
                 value={q.label}
                 onChange={(e) => change(i, { label: e.target.value })}
                 maxLength={200}
-                className="min-w-48 flex-1"
+                className="col-span-2 sm:col-span-1"
               />
               <Select
                 label="Answer"
                 value={q.kind}
                 onChange={(e) => change(i, { kind: e.target.value as Question["kind"] })}
-                className="w-36"
                 aria-label={`Answer type for question ${i + 1}`}
               >
                 <option value="text">In words</option>
@@ -219,7 +226,11 @@ function FormCard({
               {questions.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => setQuestions((qs) => qs.filter((_, x) => x !== i))}
+                  onClick={() => {
+                    setQuestions((qs) => qs.filter((_, x) => x !== i));
+                    // The button goes with its question, so keep focus somewhere sensible.
+                    addRef.current?.focus();
+                  }}
                   className="flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-mint"
                 >
                   <Icon name="close" />
@@ -231,6 +242,7 @@ function FormCard({
         </ol>
         {questions.length < MAX_QUESTIONS && (
           <Button
+            ref={addRef}
             type="button"
             variant="ghost"
             className="self-start"
@@ -256,6 +268,7 @@ function FormCard({
                   className="size-5 shrink-0 accent-spruce"
                 />
                 {s.name}
+                {elsewhere[s.id] && <span className="text-muted">(on {elsewhere[s.id]})</span>}
               </label>
             ))}
           </div>

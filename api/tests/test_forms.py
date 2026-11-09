@@ -89,11 +89,16 @@ async def test_a_customer_fills_in_the_form_and_the_venue_reads_it(client: Async
         assert asked["answers"] is None
         # One answer per question, of the right kind.
         for wrong in ([], ["None"], ["None", "yes"], [True, False], ["x" * 1001, False]):
-            assert (await ana.put(url, json={"answers": wrong})).status_code == 422, wrong
-        saved = await ana.put(url, json={"answers": ["Nuts", False]})
+            assert (
+                await ana.put(url, json={"answers": wrong, "consent": True})
+            ).status_code == 422, wrong
+        # Health answers need the customer's consent.
+        unagreed = await ana.put(url, json={"answers": ["Nuts", False]})
+        assert unagreed.status_code == 422
+        saved = await ana.put(url, json={"answers": ["Nuts", False], "consent": True})
         assert saved.status_code == 200, saved.text
         assert saved.json()["answers"] == ["Nuts", False]
-        again = await ana.put(url, json={"answers": ["Nuts, latex", False]})
+        again = await ana.put(url, json={"answers": ["Nuts, latex", False], "consent": True})
         assert again.json()["answers"] == ["Nuts, latex", False]
         mine = (await ana.get("/me/bookings")).json()["upcoming"]
         # The form applies to every visit for the service, booked before it or after.
@@ -108,17 +113,23 @@ async def test_a_customer_fills_in_the_form_and_the_venue_reads_it(client: Async
         # Someone else's booking is not found.
         async with customer("ilze@example.lv") as ilze:
             assert (await ilze.get(url)).status_code == 404
-            assert (await ilze.put(url, json={"answers": ["x", True]})).status_code == 404
+            assert (
+                await ilze.put(url, json={"answers": ["x", True], "consent": True})
+            ).status_code == 404
         # The venue reads it on the appointment.
         detail = (await client.get(f"/bookings/{visit['id']}")).json()
         assert detail["form"] == "filled"
         read = await client.get(url)
         assert read.status_code == 200 and read.json()["answers"] == ["Nuts, latex", False]
         # Only the customer answers.
-        assert (await client.put(url, json={"answers": ["x", True]})).status_code == 403
+        assert (
+            await client.put(url, json={"answers": ["x", True], "consent": True})
+        ).status_code == 403
         # No changes once cancelled.
         assert (await ana.patch(f"/bookings/{visit['id']}/cancel")).status_code == 200
-        assert (await ana.put(url, json={"answers": ["x", True]})).status_code == 409
+        assert (
+            await ana.put(url, json={"answers": ["x", True], "consent": True})
+        ).status_code == 409
         # Once the service no longer uses a form, an unanswered visit has nothing to read.
         await client.patch(f"/forms/{forms[0]['id']}", json={"service_ids": []})
         assert (await ana.get(f"/bookings/{before['id']}/form")).status_code == 404
@@ -133,7 +144,9 @@ async def test_answers_close_when_the_visit_starts_and_survive_the_form(
     async with customer() as ana:
         visit = await booked(ana, ids)
         url = f"/bookings/{visit['id']}/form"
-        assert (await ana.put(url, json={"answers": ["None", False]})).status_code == 200
+        assert (
+            await ana.put(url, json={"answers": ["None", False], "consent": True})
+        ).status_code == 200
         # Removing the form keeps the answers already given.
         assert (await client.delete(f"/forms/{skin['id']}")).status_code == 204
         assert (await ana.get(url)).json()["answers"] == ["None", False]
@@ -142,7 +155,9 @@ async def test_answers_close_when_the_visit_starts_and_survive_the_form(
             " ends_at = now() - interval '15 minutes' WHERE id = :id",
             id=visit["id"],
         )
-        assert (await ana.put(url, json={"answers": ["x", True]})).status_code == 409
+        assert (
+            await ana.put(url, json={"answers": ["x", True], "consent": True})
+        ).status_code == 409
 
 
 async def test_who_reads_the_answers(client: AsyncClient) -> None:
@@ -152,7 +167,7 @@ async def test_who_reads_the_answers(client: AsyncClient) -> None:
     async with customer() as ana:
         visit = await booked(ana, ids)
         url = f"/bookings/{visit['id']}/form"
-        await ana.put(url, json={"answers": ["None", True]})
+        await ana.put(url, json={"answers": ["None", True], "consent": True})
     async with new_client() as visitor:
         assert (await visitor.get(url)).status_code == 401
     # Marta does the visit; Ilze can see the whole calendar but not Marta's client's answers.

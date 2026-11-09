@@ -210,6 +210,9 @@ function Room({
             ))}
           </div>
         )}
+        <p className="mt-1 text-sm text-muted">
+          A service ticked on several rooms needs just one of them: any that&apos;s free.
+        </p>
       </fieldset>
       <div className="flex flex-wrap gap-2">
         <Button type="submit" loading={busy && !asking}>

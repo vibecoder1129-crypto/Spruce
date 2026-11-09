@@ -18,6 +18,7 @@ export function VisitFormPage() {
   const [missing, setMissing] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [consentMissing, setConsentMissing] = useState(false);
   const savedRef = useRef<HTMLDivElement>(null);
   const url = `/bookings/${bookingId}/form`;
 
@@ -44,15 +45,21 @@ export function VisitFormPage() {
       return value === null ? null : value === "yes";
     });
     const unanswered = answers.flatMap((a, i) => (a === null ? [i] : []));
+    const agreed = data.get("consent") === "on";
     setMissing(unanswered);
+    setConsentMissing(!agreed);
     if (unanswered.length > 0) {
       document.getElementsByName(`q${unanswered[0]}`)[0]?.focus();
+      return;
+    }
+    if (!agreed) {
+      document.getElementById("consent")?.focus();
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      setForm(await api<VisitForm>(url, { method: "PUT", body: { answers } }));
+      setForm(await api<VisitForm>(url, { method: "PUT", body: { answers, consent: true } }));
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
@@ -74,7 +81,8 @@ export function VisitFormPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{form?.name ?? "Before your visit"}</h1>
           <p className="mt-1 text-muted">
-            The venue asks this before your visit. Only they see your answers, and you can change them until it starts.
+            The venue asks this before your visit. Only the venue owner and the person doing your visit see your answers,
+            and you can change them until it starts.
           </p>
         </div>
         <FormError message={error} />
@@ -93,12 +101,12 @@ export function VisitFormPage() {
           </div>
         )}
         {form && (
-          <form noValidate onSubmit={submit} className="flex flex-col gap-5">
+          <form noValidate onSubmit={submit} onInput={() => setSaved(false)} className="flex flex-col gap-5">
             {form.questions.map((q, i) =>
               q.kind === "text" ? (
                 <div key={i} className="flex flex-col gap-1.5">
                   <label htmlFor={`q${i}`} className="font-semibold">
-                    {q.label}
+                    {q.label} <span className="font-normal text-muted">(optional)</span>
                   </label>
                   <textarea
                     id={`q${i}`}
@@ -146,6 +154,32 @@ export function VisitFormPage() {
                 </fieldset>
               ),
             )}
+            <div className="flex flex-col gap-1">
+              <label className="flex min-h-11 items-start gap-3">
+                <input
+                  id="consent"
+                  type="checkbox"
+                  name="consent"
+                  defaultChecked={form.answers !== null}
+                  onChange={() => setConsentMissing(false)}
+                  aria-describedby={consentMissing ? "consent-error" : undefined}
+                  className="mt-0.5 size-5 shrink-0 accent-spruce"
+                />
+                <span>
+                  I agree to the venue keeping these answers with this booking, to make my visit safe.
+                  <span className="font-normal text-muted">
+                    {" "}
+                    <span aria-hidden="true">*</span>
+                    <span className="sr-only">(required)</span>
+                  </span>
+                </span>
+              </label>
+              {consentMissing && (
+                <p id="consent-error" className="text-sm font-medium text-danger">
+                  Tick this box to send your answers. They may include health information.
+                </p>
+              )}
+            </div>
             <Button type="submit" size="lg" loading={busy} className="self-start">
               {form.answers ? "Save changes" : "Send answers"}
             </Button>
