@@ -56,6 +56,7 @@ export type Staff = {
   has_login: boolean;
   active: boolean;
   service_ids: string[];
+  commission_percent: number; // of the service amount, at checkout (slice 14)
 };
 
 export type Service = {
@@ -67,6 +68,7 @@ export type Service = {
   currency: string;
   active: boolean;
   rebook_weeks: number;
+  needs_patch_test: boolean; // online bookings need a patch test here first (slice 13)
 };
 
 export type Flag =
@@ -112,7 +114,43 @@ export type Booking = {
   client_flags: ("risk" | "regular")[];
 };
 
-export type BookingDetail = Booking & { guest_phone: string | null; guest_email: string | null; notes: string };
+export type BookingDetail = Booking & {
+  guest_phone: string | null;
+  guest_email: string | null;
+  notes: string;
+  resource_name: string | null; // room or equipment (slice 12)
+  form: FormState;
+  needs_patch_test: boolean;
+  patch_test_at: string | null; // this customer's last patch test at this venue
+  sale: Sale | null; // what was paid at the venue, once checked out (slice 14)
+};
+
+export type PaymentMethod = "card" | "cash" | "other";
+export type Sale = { price_minor: number; tip_minor: number; method: PaymentMethod; currency: string };
+export type TakingsTotals = { visits: number; sales_minor: number; tips_minor: number; commission_minor: number };
+/** Takings per team member for a date range (slice 14). */
+export type Takings = {
+  currency: string;
+  rows: (TakingsTotals & { staff_id: string; display_name: string })[];
+  totals: TakingsTotals;
+  by_method: Record<PaymentMethod, number>; // amount plus tip, per way of paying
+};
+
+/** Whether a visit's consultation form is still to be filled in (slice 13). */
+export type FormState = "none" | "to_fill" | "filled";
+export type Question = { label: string; kind: "text" | "yes_no" };
+/** A venue's consultation form and the services that use it. */
+export type ConsultationForm = { id: string; name: string; questions: Question[]; service_ids: string[] };
+/** One visit's form: the questions as asked, and the answers once given. */
+export type VisitForm = {
+  name: string;
+  questions: Question[];
+  answers: (string | boolean)[] | null;
+  submitted_at: string | null;
+};
+
+/** A room or piece of equipment; a service linked to some needs one of them free (slice 12). */
+export type Resource = { id: string; location_id: string; name: string; service_ids: string[] };
 
 export type BookableService = {
   id: string;
@@ -234,6 +272,7 @@ export type Storefront = {
     price_minor: number;
     currency: string;
     staff_ids: string[];
+    needs_patch_test: boolean;
   }[];
   team: { id: string; display_name: string; title: string }[];
   cancel_window_hours: number;
@@ -259,6 +298,7 @@ export type MyBooking = {
   currency: string;
   can_change: boolean;
   cancel_window_hours: number;
+  form: FormState;
 };
 
 export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };
