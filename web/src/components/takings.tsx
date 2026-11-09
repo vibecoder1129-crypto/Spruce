@@ -48,22 +48,58 @@ export function TakingsReport({ url, mine = false }: { url: string; mine?: boole
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const from = String(form.get("from"));
-    const to = String(form.get("to"));
+    show(String(form.get("from")), String(form.get("to")));
+  }
+
+  function show(from: string, to: string) {
     if (!from || !to) {
       setError("Pick both dates.");
+      return;
+    }
+    if (from > to) {
+      setError("The start date must be on or before the end date.");
       return;
     }
     setRange({ from, to });
     void load(from, to);
   }
 
+  /** Quick ranges, in the browser's calendar: today, this week (from Monday), this month, last month. */
+  function quick(kind: "today" | "week" | "month" | "last") {
+    const now = new Date();
+    const today = isoDate(now);
+    if (kind === "today") return show(today, today);
+    if (kind === "week") {
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      return show(isoDate(monday), today);
+    }
+    if (kind === "month") return show(`${today.slice(0, 8)}01`, today);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    return show(isoDate(new Date(end.getFullYear(), end.getMonth(), 1)), isoDate(end));
+  }
+
   const money = (minor: number) => (data ? formatPrice(minor, data.currency) : "");
 
   return (
     <div className="flex flex-col gap-4">
+      <div role="group" aria-label="Quick dates" className="flex flex-wrap gap-2">
+        {(
+          [
+            ["today", "Today"],
+            ["week", "This week"],
+            ["month", "This month"],
+            ["last", "Last month"],
+          ] as const
+        ).map(([kind, label]) => (
+          <Button key={kind} variant="ghost" onClick={() => quick(kind)} disabled={busy}>
+            {label}
+          </Button>
+        ))}
+      </div>
       {range && (
         <form
+          key={`${range.from}-${range.to}`}
           onSubmit={submit}
           noValidate
           aria-label="Dates"
@@ -89,6 +125,12 @@ export function TakingsReport({ url, mine = false }: { url: string; mine?: boole
         </div>
       )}
       {data && data.rows.length > 0 && (
+        <p className="text-sm text-muted">
+          Paid, with tips: card {money(data.by_method.card)} · cash {money(data.by_method.cash)} · other{" "}
+          {money(data.by_method.other)}. Services leaves tips out; commission is on services only.
+        </p>
+      )}
+      {data && data.rows.length > 0 && (
         // Scrolls sideways on a phone, so it can take keyboard focus.
         <div
           role="region"
@@ -107,13 +149,13 @@ export function TakingsReport({ url, mine = false }: { url: string; mine?: boole
                   Visits
                 </th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
-                  Takings
+                  Services
                 </th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
                   Tips
                 </th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
-                  Commission
+                  Commission owed
                 </th>
               </tr>
             </thead>

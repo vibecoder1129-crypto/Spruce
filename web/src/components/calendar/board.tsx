@@ -1421,7 +1421,8 @@ function AppointmentPanel({
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [confirmPatch, setConfirmPatch] = useState(false);
+  // When the owner asked to record one, to say when online booking opens.
+  const [confirmPatch, setConfirmPatch] = useState<number | null>(null);
   const [patchNote, setPatchNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1503,7 +1504,7 @@ function AppointmentPanel({
     setError(null);
     try {
       setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
-      setConfirmPatch(false);
+      setConfirmPatch(null);
       setPatchNote(`Patch test recorded for ${detail.client_name} today.`);
     } catch (e) {
       setError(message(e));
@@ -1603,12 +1604,17 @@ function AppointmentPanel({
               {patchNote}
             </p>
           )}
-          {mayRecord && !confirmPatch && (
-            <Button variant="secondary" className="self-start" disabled={busy} onClick={() => setConfirmPatch(true)}>
+          {mayRecord && confirmPatch === null && (
+            <Button
+              variant="secondary"
+              className="self-start"
+              disabled={busy}
+              onClick={() => setConfirmPatch(Date.now())}
+            >
               Record patch test today
             </Button>
           )}
-          {mayRecord && confirmPatch && (
+          {mayRecord && confirmPatch !== null && (
             <div
               role="alertdialog"
               aria-labelledby="patch-q"
@@ -1616,13 +1622,22 @@ function AppointmentPanel({
             >
               <p id="patch-q" className="text-sm font-semibold">
                 Record that {detail.client_name} had a patch test here today? They can then book this service online
-                from 48 hours from now.
+                from{" "}
+                {new Intl.DateTimeFormat("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: tz,
+                }).format(new Date(confirmPatch + 48 * 3600 * 1000))}
+                .
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button loading={busy} onClick={recordPatchTest} autoFocus>
                   Yes, record it
                 </Button>
-                <Button variant="ghost" onClick={() => setConfirmPatch(false)} disabled={busy}>
+                <Button variant="ghost" onClick={() => setConfirmPatch(null)} disabled={busy}>
                   Not now
                 </Button>
               </div>
@@ -1729,24 +1744,29 @@ function Checkout({
   onDone: (text: string) => Promise<void>;
   onBack: () => void;
 }) {
-  const [method, setMethod] = useState<PaymentMethod>("card");
-  const [errors, setErrors] = useState<{ price?: string; tip?: string }>({});
+  // No default: a hurried cash payment mustn't be recorded as card.
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [price, setPrice] = useState((detail.price_minor / 100).toFixed(2));
+  const [tipText, setTipText] = useState("");
+  const [errors, setErrors] = useState<{ price?: string; tip?: string; method?: string }>({});
+  const amount = toMinor(price);
+  const tipAmount = tipText.trim() ? toMinor(tipText) : 0;
+  const unusual = amount !== null && detail.price_minor > 0 && amount > detail.price_minor * 3;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const form = new FormData(event.currentTarget);
-    const price = toMinor(String(form.get("price")));
-    const tip = String(form.get("tip")).trim() ? toMinor(String(form.get("tip"))) : 0;
     const found = {
-      price: price === null ? "Enter an amount like 35 or 35.50." : undefined,
-      tip: tip === null ? "Enter a tip like 5, or leave it empty." : undefined,
+      price: amount === null ? "Enter an amount like 35 or 35.50." : undefined,
+      tip: tipAmount === null ? "Enter a tip like 5, or leave it empty." : undefined,
+      method: method === null ? "Choose how they paid." : undefined,
     };
     setErrors(found);
-    if (price === null || tip === null) {
-      event.currentTarget.querySelector<HTMLInputElement>(price === null ? "[name=price]" : "[name=tip]")?.focus();
+    if (amount === null || tipAmount === null || method === null) {
+      const first = amount === null ? "[name=price]" : tipAmount === null ? "[name=tip]" : "[name=method]";
+      event.currentTarget.querySelector<HTMLInputElement>(first)?.focus();
       return;
     }
     setBusy(true);
@@ -1754,9 +1774,9 @@ function Checkout({
     try {
       await api(`/bookings/${detail.id}/checkout`, {
         method: "POST",
-        body: { price_minor: price, tip_minor: tip, method },
+        body: { price_minor: amount, tip_minor: tipAmount, method },
       });
-      await onDone(`Checked out ${detail.client_name}: ${formatPrice(price + tip, detail.currency)} paid.`);
+      await onDone(`Checked out ${detail.client_name}: ${formatPrice(amount + tipAmount, detail.currency)} paid.`);
     } catch (e) {
       setError(message(e));
       setBusy(false);
@@ -1778,23 +1798,44 @@ function Checkout({
         label="Amount for the service"
         name="price"
         inputMode="decimal"
-        defaultValue={(detail.price_minor / 100).toFixed(2)}
+        value={price}
+        onChange={(e) => {
+          setPrice(e.target.value);
+          setErrors((x) => ({ ...x, price: undefined }));
+        }}
         hint={`In ${detail.currency}. Change it for a discount or an extra.`}
         error={errors.price}
-        onInput={() => setErrors((e) => ({ ...e, price: undefined }))}
         required
+        autoFocus
       />
+      {unusual && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-3 py-2 text-sm">
+          That&apos;s more than three times the booked price of {formatPrice(detail.price_minor, detail.currency)}.
+          Check it before you confirm.
+        </p>
+      )}
       <Field
         label="Tip"
         name="tip"
         inputMode="decimal"
         placeholder="0"
         hint="Goes to the person in full, with no commission."
+        value={tipText}
+        onChange={(e) => {
+          setTipText(e.target.value);
+          setErrors((x) => ({ ...x, tip: undefined }));
+        }}
         error={errors.tip}
-        onInput={() => setErrors((e) => ({ ...e, tip: undefined }))}
       />
-      <fieldset className="flex flex-col gap-1">
-        <legend className="text-sm font-semibold">Paid by</legend>
+      <fieldset className="flex flex-col gap-1" aria-describedby={errors.method ? "method-error" : undefined}>
+        <legend className="text-sm font-semibold">
+          Paid by
+          <span className="font-normal text-muted">
+            {" "}
+            <span aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </legend>
         <div className="flex flex-wrap gap-x-5">
           {(Object.keys(METHODS) as PaymentMethod[]).map((m) => (
             <label key={m} className="flex min-h-11 items-center gap-2 text-sm">
@@ -1803,14 +1844,26 @@ function Checkout({
                 name="method"
                 value={m}
                 checked={method === m}
-                onChange={() => setMethod(m)}
+                onChange={() => {
+                  setMethod(m);
+                  setErrors((x) => ({ ...x, method: undefined }));
+                }}
                 className="size-5 accent-spruce"
               />
               {METHODS[m]}
             </label>
           ))}
         </div>
+        {errors.method && (
+          <p id="method-error" className="text-sm font-medium text-danger">
+            {errors.method}
+          </p>
+        )}
       </fieldset>
+      <p className="text-base font-bold" aria-live="polite">
+        Total to take:{" "}
+        {amount !== null && tipAmount !== null ? formatPrice(amount + tipAmount, detail.currency) : "check the amounts"}
+      </p>
       <div className="flex flex-wrap gap-2">
         <Button type="submit" loading={busy}>
           Confirm checkout

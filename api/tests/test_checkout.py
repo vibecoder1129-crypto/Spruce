@@ -121,6 +121,8 @@ async def test_commission_is_kept_as_it_was_at_checkout(client: AsyncClient) -> 
         "commission_minor": 2333,
     }
     assert report["currency"] == "EUR"
+    # Paid per method, tips included, to check against the till and the card machine.
+    assert report["by_method"] == {"card": 3333 + 500 + 4000, "cash": 2000, "other": 0}
 
 
 async def test_takings_cover_only_the_dates_and_this_business(client: AsyncClient) -> None:

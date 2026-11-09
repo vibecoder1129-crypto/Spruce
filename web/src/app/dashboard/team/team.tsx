@@ -410,7 +410,7 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
           max={100}
           step={1}
           defaultValue={person.commission_percent}
-          hint="Their share of each service amount at checkout, from 0 to 100. Tips go to them in full."
+          hint="Their share of each service amount at checkout, from 0 to 100. A change applies to checkouts from now on. Tips go to them in full."
           data-missing="Enter a percentage from 0 to 100."
           title="Enter a whole number from 0 to 100."
           error={details.errors.commission}

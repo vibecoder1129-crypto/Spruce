@@ -50,11 +50,16 @@ test("an owner sets a commission, checks out a visit with a tip, and sees it in 
   await detail.getByRole("button", { name: "Check out" }).click();
   const checkout = detail.getByRole("form", { name: "Check out" });
   await expect(checkout.getByLabel("Amount for the service")).toHaveValue("35.00");
+  await expect(checkout.getByLabel("Amount for the service")).toBeFocused();
   await checkout.getByLabel("Tip").fill("five");
   await checkout.getByRole("button", { name: "Confirm checkout" }).click();
   await expect(checkout.getByText("Enter a tip like 5, or leave it empty.")).toBeVisible();
   await expect(checkout.getByLabel("Tip")).toBeFocused();
   await checkout.getByLabel("Tip").fill("5");
+  await expect(checkout.getByText("Total to take: €40.00")).toBeVisible();
+  // How they paid has no default, so cash is never recorded as card by mistake.
+  await checkout.getByRole("button", { name: "Confirm checkout" }).click();
+  await expect(checkout.getByText("Choose how they paid.")).toBeVisible();
   await checkout.getByRole("radio", { name: "Cash" }).check();
   await expectAccessible(page);
   await checkout.getByRole("button", { name: "Confirm checkout" }).click();
@@ -74,7 +79,12 @@ test("an owner sets a commission, checks out a visit with a tip, and sees it in 
     "€14.00",
   ]);
   await expectAccessible(page);
-  // A range with no checkouts says so.
+  await expect(page.getByText(/card €0\.00 · cash €40\.00 · other €0\.00/)).toBeVisible();
+  // A backwards range is caught, and a range with no checkouts says so.
+  await page.getByLabel("From").fill("2026-02-01");
+  await page.getByLabel("To").fill("2026-01-31");
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByText("The start date must be on or before the end date.")).toBeVisible();
   await page.getByLabel("From").fill("2026-01-01");
   await page.getByLabel("To").fill("2026-01-31");
   await page.getByRole("button", { name: "Show" }).click();

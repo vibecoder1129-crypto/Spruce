@@ -133,6 +133,7 @@ export type Takings = {
   currency: string;
   rows: (TakingsTotals & { staff_id: string; display_name: string })[];
   totals: TakingsTotals;
+  by_method: Record<PaymentMethod, number>; // amount plus tip, per way of paying
 };
 
 /** Whether a visit's consultation form is still to be filled in (slice 13). */

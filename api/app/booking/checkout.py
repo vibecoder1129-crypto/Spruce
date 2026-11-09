@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
-from app.booking.models import BookingStatus, Sale
+from app.booking.models import BookingStatus, PaymentMethod, Sale
 from app.booking.router import _count, _detail, _visible_booking
 from app.booking.schemas import BookingDetail, CheckoutIn, TakingsOut, TakingsRow, TakingsTotals
 from app.business.models import Business, Location, StaffProfile
@@ -126,7 +126,17 @@ async def _takings(
         tips_minor=sum(r.tips_minor for r in rows),
         commission_minor=sum(r.commission_minor for r in rows),
     )
-    return TakingsOut(currency=currency_for(place[1]), rows=rows, totals=totals)
+    paid = select(Sale.method, func.sum(Sale.price_minor + Sale.tip_minor)).where(
+        Sale.business_id == business.id, Sale.created_at >= since, Sale.created_at < until
+    )
+    if staff_id is not None:
+        paid = paid.where(Sale.staff_id == staff_id)
+    by_method = {m: 0 for m in PaymentMethod}
+    for method, amount in await db.execute(paid.group_by(Sale.method)):
+        by_method[method] = amount
+    return TakingsOut(
+        currency=currency_for(place[1]), rows=rows, totals=totals, by_method=by_method
+    )
 
 
 @router.get("/businesses/{business_id}/takings")

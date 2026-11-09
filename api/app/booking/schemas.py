@@ -339,3 +339,5 @@ class TakingsOut(BaseModel):
     currency: str
     rows: list[TakingsRow]
     totals: TakingsTotals
+    # Amount plus tip per way of paying, to check against the till and the card machine.
+    by_method: dict[PaymentMethod, int]

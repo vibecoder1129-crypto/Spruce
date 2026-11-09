@@ -18,7 +18,7 @@ paid (`card`, `cash`, `other`), the currency, and the commission worked out at c
 | --- | --- | --- |
 | `POST /bookings/{id}/checkout` | Owner, or the visit's team member with "checkout.own" | Amount, tip and method. Marks the visit done, like "Mark as done" |
 | `PATCH /staff/{id}` | Owner | Now also `commission_percent`, 0 to 100 |
-| `GET /businesses/{id}/takings?from=&to=` | Owner | Per team member: visits, amount, tips, commission, and totals |
+| `GET /businesses/{id}/takings?from=&to=` | Owner | Per team member: visits, amount, tips, commission, and totals, plus what was paid by card, cash and other |
 | `GET /me/takings?from=&to=` | Team member with "reports.own" | Their own row only |
 
 The appointment details show the sale once checked out. Dates are the venue's local days, both
