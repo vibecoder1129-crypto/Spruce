@@ -39,6 +39,12 @@ class BookingSource(enum.StrEnum):
     owner = "owner"
 
 
+class PaymentMethod(enum.StrEnum):
+    card = "card"
+    cash = "cash"
+    other = "other"
+
+
 class WeeklyShift(IdMixin, Base):
     """One staff member's hours on one day of one dated week (LLD 3.3). Not a recurring rule.
 
@@ -222,3 +228,40 @@ class FormAnswers(Base):
     )
     answers_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Sale(IdMixin, CreatedMixin, Base):
+    """What was paid at the venue for one visit (slice 14). Spruce records it, it takes nothing.
+
+    The commission is worked out at checkout and kept, so a later rate change can't rewrite pay.
+    """
+
+    __tablename__ = "sales"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    staff_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("staff_profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    tip_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    method: Mapped[PaymentMethod] = mapped_column(
+        Enum(PaymentMethod, name="payment_method"), nullable=False
+    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    commission_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "price_minor >= 0 AND tip_minor >= 0 AND commission_minor >= 0",
+            name="amounts_not_negative",
+        ),
+        Index("ix_sales_business_created", "business_id", "created_at"),
+    )

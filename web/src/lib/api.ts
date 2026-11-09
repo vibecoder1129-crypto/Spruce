@@ -56,6 +56,7 @@ export type Staff = {
   has_login: boolean;
   active: boolean;
   service_ids: string[];
+  commission_percent: number; // of the service amount, at checkout (slice 14)
 };
 
 export type Service = {
@@ -121,6 +122,17 @@ export type BookingDetail = Booking & {
   form: FormState;
   needs_patch_test: boolean;
   patch_test_at: string | null; // this customer's last patch test at this venue
+  sale: Sale | null; // what was paid at the venue, once checked out (slice 14)
+};
+
+export type PaymentMethod = "card" | "cash" | "other";
+export type Sale = { price_minor: number; tip_minor: number; method: PaymentMethod; currency: string };
+export type TakingsTotals = { visits: number; sales_minor: number; tips_minor: number; commission_minor: number };
+/** Takings per team member for a date range (slice 14). */
+export type Takings = {
+  currency: string;
+  rows: (TakingsTotals & { staff_id: string; display_name: string })[];
+  totals: TakingsTotals;
 };
 
 /** Whether a visit's consultation form is still to be filled in (slice 13). */

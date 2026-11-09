@@ -31,6 +31,7 @@ import {
   type Booking,
   type BookingDetail,
   type DayBoard as Board,
+  type PaymentMethod,
   type TimeOff,
   type VisitForm,
   type Waiting,
@@ -1419,6 +1420,7 @@ function AppointmentPanel({
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
@@ -1480,17 +1482,13 @@ function AppointmentPanel({
     }
   }
 
-  async function mark(outcome: "complete" | "no-show") {
+  async function noShow() {
     if (!detail) return;
     setBusy(true);
     setError(null);
     try {
-      await api(`/bookings/${detail.id}/${outcome}`, { method: "PATCH" });
-      await onChanged(
-        outcome === "complete"
-          ? `Marked ${detail.client_name}'s appointment as done.`
-          : `Marked ${detail.client_name} as a no-show.`,
-      );
+      await api(`/bookings/${detail.id}/no-show`, { method: "PATCH" });
+      await onChanged(`Marked ${detail.client_name} as a no-show.`);
     } catch (e) {
       setError(message(e));
       setBusy(false);
@@ -1575,6 +1573,16 @@ function AppointmentPanel({
                 </dd>
               </>
             )}
+            {detail.sale && (
+              <>
+                <dt className="text-muted">Paid</dt>
+                <dd className="font-semibold">
+                  {formatPrice(detail.sale.price_minor, detail.sale.currency)},{" "}
+                  {METHODS[detail.sale.method].toLowerCase()}
+                  {detail.sale.tip_minor > 0 && ` · tip ${formatPrice(detail.sale.tip_minor, detail.sale.currency)}`}
+                </dd>
+              </>
+            )}
             {(detail.status === "completed" || detail.status === "no_show") && (
               <>
                 <dt className="text-muted">Outcome</dt>
@@ -1588,15 +1596,18 @@ function AppointmentPanel({
               Record patch test today
             </Button>
           )}
-          {mayMark && (
+          {mayMark && !checkingOut && (
             <div className="flex flex-wrap gap-2">
-              <Button loading={busy} onClick={() => mark("complete")}>
-                Mark as done
+              <Button disabled={busy} onClick={() => setCheckingOut(true)}>
+                Check out
               </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => mark("no-show")}>
+              <Button variant="secondary" disabled={busy} onClick={noShow}>
                 No-show
               </Button>
             </div>
+          )}
+          {mayMark && checkingOut && (
+            <Checkout detail={detail} onDone={(paid) => onChanged(paid)} onBack={() => setCheckingOut(false)} />
           )}
           {mayChange && !confirmCancel && (
             <div className="flex flex-wrap gap-2">
@@ -1659,6 +1670,119 @@ function AppointmentPanel({
         </form>
       )}
     </>
+  );
+}
+
+const METHODS = { card: "Card", cash: "Cash", other: "Other" } as const;
+
+/** "35", "35.5" or "35,50" to cents. Null when it isn't an amount. */
+function toMinor(text: string): number | null {
+  const clean = text.trim().replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
+  return Math.round(Number(clean) * 100);
+}
+
+/** Records what was paid at the venue and finishes the visit (slice 14). Spruce takes no money. */
+function Checkout({
+  detail,
+  onDone,
+  onBack,
+}: {
+  detail: BookingDetail;
+  onDone: (text: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  const [method, setMethod] = useState<PaymentMethod>("card");
+  const [errors, setErrors] = useState<{ price?: string; tip?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = new FormData(event.currentTarget);
+    const price = toMinor(String(form.get("price")));
+    const tip = String(form.get("tip")).trim() ? toMinor(String(form.get("tip"))) : 0;
+    const found = {
+      price: price === null ? "Enter an amount like 35 or 35.50." : undefined,
+      tip: tip === null ? "Enter a tip like 5, or leave it empty." : undefined,
+    };
+    setErrors(found);
+    if (price === null || tip === null) {
+      event.currentTarget.querySelector<HTMLInputElement>(price === null ? "[name=price]" : "[name=tip]")?.focus();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/bookings/${detail.id}/checkout`, {
+        method: "POST",
+        body: { price_minor: price, tip_minor: tip, method },
+      });
+      await onDone(`Checked out ${detail.client_name}: ${formatPrice(price + tip, detail.currency)} paid.`);
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={submit}
+      aria-labelledby="checkout-title"
+      className="flex flex-col gap-4 rounded-[var(--radius-control)] bg-ground p-4"
+    >
+      <h3 id="checkout-title" className="font-bold">
+        Check out
+      </h3>
+      <FormError message={error} />
+      <Field
+        label="Amount for the service"
+        name="price"
+        inputMode="decimal"
+        defaultValue={(detail.price_minor / 100).toFixed(2)}
+        hint={`In ${detail.currency}. Change it for a discount or an extra.`}
+        error={errors.price}
+        onInput={() => setErrors((e) => ({ ...e, price: undefined }))}
+        required
+      />
+      <Field
+        label="Tip"
+        name="tip"
+        inputMode="decimal"
+        placeholder="0"
+        hint="Goes to the person in full, with no commission."
+        error={errors.tip}
+        onInput={() => setErrors((e) => ({ ...e, tip: undefined }))}
+      />
+      <fieldset className="flex flex-col gap-1">
+        <legend className="text-sm font-semibold">Paid by</legend>
+        <div className="flex flex-wrap gap-x-5">
+          {(Object.keys(METHODS) as PaymentMethod[]).map((m) => (
+            <label key={m} className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="method"
+                value={m}
+                checked={method === m}
+                onChange={() => setMethod(m)}
+                className="size-5 accent-spruce"
+              />
+              {METHODS[m]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" loading={busy}>
+          Confirm checkout
+        </Button>
+        <Button variant="ghost" onClick={onBack} disabled={busy}>
+          Back
+        </Button>
+      </div>
+    </form>
   );
 }
 
