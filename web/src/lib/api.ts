@@ -34,7 +34,7 @@ export type Business = {
   support_until: string | null;
 };
 
-export type SupportState = { until: string | null; log: { at: string; method: string; path: string }[] };
+export type SupportState = { until: string | null; log: { at: string; method: string; path: string; by: string }[] };
 
 export type AdminBusiness = Business & { location_count: number; staff_count: number };
 

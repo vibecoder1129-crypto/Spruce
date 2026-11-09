@@ -90,12 +90,14 @@ export function SettingsPage() {
   );
 }
 
-const SUPPORT_CHOICES = [
-  { hours: 0, label: "Off" },
-  { hours: 24, label: "For 24 hours" },
-  { hours: 72, label: "For 3 days" },
-];
 const at = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const until = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
 
 /** Slice 8: let Spruce support set things up, for a while, and see everything they changed. */
 function SupportAccess({ businessId }: { businessId: string }) {
@@ -103,6 +105,7 @@ function SupportAccess({ businessId }: { businessId: string }) {
   const [hours, setHours] = useState(24);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const on = !!state?.until;
 
   // The choice offered next: turning it off while it's on, otherwise a day.
   function show(next: SupportState) {
@@ -146,22 +149,22 @@ function SupportAccess({ businessId }: { businessId: string }) {
       </div>
       <p role="status" className="rounded-[var(--radius-control)] bg-ground px-4 py-3 text-sm font-semibold">
         {state === null
-          ? "Loading…"
+          ? error
+            ? "Couldn't load the current setting."
+            : "Loading…"
           : state.until
-            ? `On until ${at.format(new Date(state.until))}.`
+            ? `On until ${until.format(new Date(state.until))}.`
             : "Off. Support can't sign in."}
       </p>
       <Select label="Allow support" value={hours} onChange={(e) => setHours(Number(e.target.value))}>
-        {SUPPORT_CHOICES.map((c) => (
-          <option key={c.hours} value={c.hours}>
-            {c.label}
-          </option>
-        ))}
+        <option value={0}>{on ? "Turn off now" : "Off"}</option>
+        <option value={24}>{on ? "24 hours from now" : "For 24 hours"}</option>
+        <option value={72}>{on ? "3 days from now" : "For 3 days"}</option>
       </Select>
       <FormError message={error} />
       <div>
-        <Button type="submit" loading={busy}>
-          {hours === 0 ? "Turn off support access" : "Allow support"}
+        <Button type="submit" loading={busy} disabled={!on && hours === 0}>
+          {hours === 0 ? "Turn off support access" : on ? "Set new end time" : "Allow support"}
         </Button>
       </div>
       {state && state.log.length > 0 && (
@@ -171,7 +174,9 @@ function SupportAccess({ businessId }: { businessId: string }) {
             {state.log.map((entry) => (
               <li key={entry.at + entry.path} className="flex flex-wrap gap-x-3">
                 <span className="text-muted">{at.format(new Date(entry.at))}</span>
-                <span>{describe(entry.method, entry.path)}</span>
+                <span>
+                  {describe(entry.method, entry.path)} <span className="text-muted">by {entry.by}</span>
+                </span>
               </li>
             ))}
           </ul>

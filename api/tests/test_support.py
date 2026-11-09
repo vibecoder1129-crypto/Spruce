@@ -50,8 +50,8 @@ async def test_support_needs_the_owners_permission_and_is_logged(client: AsyncCl
         assert service.status_code == 201, service.text
 
     log = (await client.get(f"/businesses/{business_id}/support")).json()["log"]
-    assert [(e["method"], e["path"]) for e in log] == [
-        ("POST", f"/businesses/{business_id}/services")
+    assert [(e["method"], e["path"], e["by"]) for e in log] == [
+        ("POST", f"/businesses/{business_id}/services", "admin@example.com")
     ]
     assert (await client.get("/me")).json()["support"] is False
 

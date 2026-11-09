@@ -123,6 +123,7 @@ class SupportAction(BaseModel):
     at: datetime
     method: str
     path: str
+    by: str  # the support person's email, so the owner knows who
 
 
 class SupportOut(BaseModel):

@@ -31,6 +31,14 @@ export const STATUS_LABEL = {
   suspended: "Suspended",
 } as const;
 
+const supportEnds = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+
 type Ctx = { business: Business; reload: () => Promise<void>; support: boolean };
 const BusinessContext = createContext<Ctx | null>(null);
 
@@ -182,11 +190,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         {me?.support && business && (
           <section
             aria-label="Support mode"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line-strong bg-warn-soft px-4 py-3"
+            className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line-strong bg-warn-soft px-4 py-3 shadow-[var(--shadow-card)]"
           >
             <p className="text-sm">
               <span className="font-semibold">You&apos;re helping {business.name} as Spruce support.</span> Every change
               is logged and the owner can read it.
+              {business.support_until && (
+                <> Access ends {supportEnds.format(new Date(business.support_until))}.</>
+              )}
             </p>
             <Button
               variant="secondary"
@@ -196,7 +207,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 await logOut(router).finally(() => setLeaving(false));
               }}
             >
-              End support
+              End support and log out
             </Button>
           </section>
         )}

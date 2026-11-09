@@ -48,6 +48,7 @@ test("an owner lets support in, support adds a service, and the owner reads the 
 
   const banner = admin.getByRole("region", { name: "Support mode" });
   await expect(banner).toContainText(`You're helping ${name} as Spruce support.`);
+  await expect(banner).toContainText("Access ends");
   await expectAccessible(admin);
   await admin.goto("/dashboard/services");
   await addService(admin, "Haircut", "35");
@@ -55,13 +56,13 @@ test("an owner lets support in, support adds a service, and the owner reads the 
   await admin.goto("/dashboard/settings");
   await expect(admin.getByRole("heading", { name: "Cancellation policy" })).toBeVisible();
   await expect(admin.getByRole("form", { name: "Support access" })).toHaveCount(0);
-  await admin.getByRole("region", { name: "Support mode" }).getByRole("button", { name: "End support" }).click();
+  await admin.getByRole("region", { name: "Support mode" }).getByRole("button", { name: "End support and log out" }).click();
   await expect(admin).toHaveURL(/\/login/);
   await context.close();
 
   // The owner sees what changed, then turns access off.
   await page.reload();
-  await expect(access.getByRole("list")).toContainText("Added services");
+  await expect(access.getByRole("list")).toContainText(`Added services by ${adminEmail}`);
   await expect(access.getByLabel("Allow support")).toHaveValue("0");
   await access.getByRole("button", { name: "Turn off support access" }).click();
   await expect(access.getByRole("status")).toHaveText("Off. Support can't sign in.");

@@ -262,7 +262,7 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
         </p>
       )}
 
-      <SupportAccess summary={summary} onError={setError} />
+      <SupportAccess summary={summary} />
 
       {pending && !rejecting && (
         <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row">
@@ -374,9 +374,10 @@ function Detail({ summary, onDecided }: { summary: AdminBusiness; onDecided: (me
 }
 
 /** Slice 8: with the owner's say-so, open their dashboard to help. The API logs every change. */
-function SupportAccess({ summary, onError }: { summary: AdminBusiness; onError: (text: string | null) => void }) {
+function SupportAccess({ summary }: { summary: AdminBusiness }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const until = summary.support_until ? new Date(summary.support_until) : null;
   // Read once on mount: "now" changes every render, and the API decides anyway.
   const [now] = useState(() => Date.now());
@@ -384,7 +385,7 @@ function SupportAccess({ summary, onError }: { summary: AdminBusiness; onError: 
 
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-5">
-      <h3 className="text-sm font-semibold text-muted">Support access</h3>
+      <h3 className="text-sm font-semibold">Support access</h3>
       {allowed ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm">The owner allows support until {when.format(until)}.</p>
@@ -393,18 +394,19 @@ function SupportAccess({ summary, onError }: { summary: AdminBusiness; onError: 
             loading={busy}
             onClick={async () => {
               setBusy(true);
-              onError(null);
+              setError(null);
               try {
                 await api(`/admin/businesses/${summary.id}/support`, { method: "POST" });
                 router.push("/dashboard");
               } catch (e) {
-                onError(e instanceof Error ? e.message : "That didn't work.");
+                setError(e instanceof Error ? e.message : "That didn't work.");
                 setBusy(false);
               }
             }}
           >
             Open as support
           </Button>
+          <FormError message={error} />
         </div>
       ) : (
         <p className="text-sm text-muted">Off. The owner can turn it on in their Settings.</p>

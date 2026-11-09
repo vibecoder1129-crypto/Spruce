@@ -16,7 +16,7 @@ from app.business.router import NOT_FOUND, Admin, Owner, _owned
 from app.business.schemas import SupportAction, SupportIn, SupportOut
 from app.identity.deps import Auth, Db
 from app.identity.models import Session, User
-from app.identity.router import me_out
+from app.identity.router import me_out, user_email
 from app.identity.schemas import MeOut
 from app.identity.sessions import start_session
 from app.models_base import utcnow
@@ -75,8 +75,9 @@ async def get_support(business_id: uuid.UUID, auth: Owner, db: Db) -> SupportOut
 
 
 async def _state(db: Db, business: Business) -> SupportOut:
-    rows = await db.scalars(
-        select(AuditLog)
+    rows = await db.execute(
+        select(AuditLog, User)
+        .join(User, User.id == AuditLog.actor_user_id)
         .where(
             AuditLog.action_type == "support.action",
             AuditLog.target_type == "business",
@@ -89,9 +90,12 @@ async def _state(db: Db, business: Business) -> SupportOut:
         until=None if _off(business) else business.support_until,
         log=[
             SupportAction(
-                at=r.created_at, method=r.metadata_json["method"], path=r.metadata_json["path"]
+                at=r.created_at,
+                method=r.metadata_json["method"],
+                path=r.metadata_json["path"],
+                by=user_email(admin),
             )
-            for r in rows
+            for r, admin in rows.all()
         ],
     )
 
