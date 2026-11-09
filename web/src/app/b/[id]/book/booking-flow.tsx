@@ -97,7 +97,8 @@ export function BookingFlow() {
     () => (service && store ? store.team.filter((m) => service.staff_ids.includes(m.id)) : []),
     [service, store],
   );
-  const staff = staffParam === ANY ? ANY : (team.find((m) => m.id === staffParam)?.id ?? null);
+  // A link naming someone who left or no longer does this service ("Book again", reminder emails) falls back to anyone.
+  const staff = !staffParam ? null : (team.find((m) => m.id === staffParam)?.id ?? ANY);
   const step = !service ? 0 : !staff ? 1 : !time || !day || !pick ? 2 : 3;
   const here = `/b/${id}/book?${params.toString()}`;
   const done = finished?.at === here ? finished.booking : null;

@@ -200,6 +200,20 @@ async def main(db):
   );
 }
 
+/** The one-click stop link a rebooking reminder email carries, for this customer. */
+export function stopLink(email: string): string {
+  return apiPython(
+    `from sqlalchemy import select
+from app.booking.reminders import stop_token
+from app.crypto import email_index
+from app.identity.models import User
+async def main(db):
+    user = await db.scalar(select(User).where(User.email_index == email_index(os.environ["ARG_EMAIL"])))
+    print(f"/emails/stop?u={user.id}&t={stop_token(user.id)}")`,
+    { ARG_EMAIL: email },
+  ).trim();
+}
+
 /** Stands in for a larger venue: `count` more team members at the first location, and a second location. */
 export function growBusiness(name: string, people: string[], secondLocation: string) {
   apiPython(

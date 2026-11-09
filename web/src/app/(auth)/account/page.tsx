@@ -17,6 +17,7 @@ export default function AccountPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Favorite[] | null>(null);
 
   useEffect(() => {
@@ -127,17 +128,25 @@ export default function AccountPage() {
               aria-checked={me.rebook_reminders !== false}
               aria-labelledby="rebook-label"
               aria-describedby="rebook-meaning"
+              aria-busy={saving}
               onClick={async () => {
+                if (saving) return;
+                const was = me;
                 setError(null);
+                setSaving(true);
+                setMe({ ...me, rebook_reminders: me.rebook_reminders === false }); // move at once
                 try {
                   const next = await api<Me>("/me", {
                     method: "PATCH",
-                    body: { rebook_reminders: me.rebook_reminders === false },
+                    body: { rebook_reminders: was.rebook_reminders === false },
                   });
                   setMe(next);
                   setNotice(next.rebook_reminders ? "Rebooking reminders are on." : "Rebooking reminders are off.");
                 } catch (e) {
+                  setMe(was);
                   setError(e instanceof Error ? e.message : "That didn't save.");
+                } finally {
+                  setSaving(false);
                 }
               }}
               className="flex min-h-11 min-w-14 shrink-0 items-center justify-center rounded-full"

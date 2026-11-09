@@ -9,6 +9,7 @@ import {
   martaEveryDay,
   ownerWithBusiness,
   PASSWORD,
+  stopLink,
   uniqueEmail,
 } from "./helpers";
 
@@ -73,6 +74,9 @@ test("an owner sets a rebook time, and a customer books again and controls remin
   await past.getByRole("link", { name: /^Book again/ }).click();
   await expect(c.getByText("Service: Haircut, 45 min")).toBeVisible();
   await expect(c.getByText("Professional: Marta")).toBeVisible();
+  // If that person has gone, the same link offers anyone available instead.
+  await c.goto(c.url().replace(/staff=[0-9a-f-]+/, "staff=00000000-0000-0000-0000-000000000000"));
+  await expect(c.getByText("Professional: Anyone available")).toBeVisible();
 
   // Reminders are on until the customer turns them off.
   await c.goto("/account");
@@ -83,7 +87,25 @@ test("an owner sets a rebook time, and a customer books again and controls remin
   await expect(reminders).toHaveAttribute("aria-checked", "false");
   await expect(c.getByText("Rebooking reminders are off.")).toBeVisible();
   await c.reload();
-  await expect(c.getByRole("switch", { name: "Rebooking reminders" })).toHaveAttribute("aria-checked", "false");
+  await expect(reminders).toHaveAttribute("aria-checked", "false");
+  await reminders.click();
+  await expect(c.getByText("Rebooking reminders are on.")).toBeVisible();
+
+  // Every reminder email has a one-click stop link that works without logging in.
+  await context.clearCookies();
+  await c.goto(stopLink(email));
+  await expect(c.getByRole("heading", { name: "Stop rebooking reminders?" })).toBeVisible();
+  await expectAccessible(c);
+  await c.getByRole("button", { name: "Stop these emails" }).click();
+  await expect(c.getByRole("status")).toHaveText("You won't get rebooking reminders any more.");
+  await expect(c.getByRole("status")).toBeFocused();
+  await c.goto("/login");
+  await c.getByLabel("Email").fill(email);
+  await c.getByLabel("Password").fill(PASSWORD);
+  await c.getByRole("button", { name: "Log in" }).click();
+  await expect(c).toHaveURL(/\/bookings$/);
+  await c.goto("/account");
+  await expect(reminders).toHaveAttribute("aria-checked", "false");
   await context.close();
 });
 

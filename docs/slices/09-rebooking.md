@@ -30,7 +30,13 @@ for other week counts, and no personal data in logs.
 
 - Services: "Remind clients to rebook after" on each service.
 - Your bookings: "Book again" on past visits. Account: "Rebooking reminders" switch.
+- Every reminder has a one-click stop link (`/emails/stop`, signed per user, works without logging
+  in). The page asks for one button press, so mail scanners that open links don't unsubscribe.
+- A "Book again" or email link naming someone who left, or no longer does the service, falls back to
+  anyone available.
 
 ## Decisions
 
+- Reminders are on by default (the EU "existing customer, similar service" soft opt-in), with an
+  opt-out in every email and in Account. Pending archit's confirmation.
 - A daily command, not a worker: hosting (slice 23) schedules it. shortcut: until then it's run by hand or by Task Scheduler on Jarvis.

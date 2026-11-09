@@ -1,5 +1,6 @@
 """Slice 9: rebooking reminders and Book again."""
 
+import re
 from typing import Any
 
 from httpx import AsyncClient
@@ -114,3 +115,32 @@ async def test_who_may_change_what(client: AsyncClient) -> None:
         ).status_code == 403
         me = (await ana.get("/me")).json()
         assert me["rebook_reminders"] is True
+
+
+async def test_every_reminder_has_a_one_click_stop_link(client: AsyncClient) -> None:
+    ids = await venue(client)
+    await every(client, ids)
+    async with customer() as ana:
+        visit = await booked(ana, ids)
+        await finished(ids, visit, weeks_ago=6.1)
+        mail.outbox.clear()
+        assert await remind() == 1
+        found = re.search(r"/emails/stop\?u=([0-9a-f-]+)&t=([\w-]+)", mail.outbox[0].text)
+        assert found is not None
+        user_id, token = found.groups()
+        async with new_client() as anyone:  # works from the email, without logging in
+            wrong = await anyone.post(
+                "/emails/stop", json={"user_id": user_id, "token": token[:-2] + "xx"}
+            )
+            assert wrong.status_code == 404
+            other = "00000000-0000-0000-0000-000000000000"
+            assert (
+                await anyone.post("/emails/stop", json={"user_id": other, "token": token})
+            ).status_code == 404
+            assert (await ana.get("/me")).json()["rebook_reminders"] is True
+            stopped = await anyone.post("/emails/stop", json={"user_id": user_id, "token": token})
+            assert stopped.status_code == 204, stopped.text
+            # Using the link twice is fine.
+            again = await anyone.post("/emails/stop", json={"user_id": user_id, "token": token})
+            assert again.status_code == 204
+        assert (await ana.get("/me")).json()["rebook_reminders"] is False

@@ -286,11 +286,11 @@ function ServicePanel({
           label="Remind clients to rebook after"
           name="rebook"
           defaultValue={service?.rebook_weeks ?? 0}
-          hint="We email them once, with a link to book the same again. Not if they've already booked."
+          hint="One email after their visit, with a link to book the same again. Not if they've already booked, or turned reminders off."
         >
           {REBOOK_WEEKS.map((w) => (
             <option key={w} value={w}>
-              {w === 0 ? "Don't remind" : `${w} weeks`}
+              {w === 0 ? "Don't remind" : w === 26 ? "6 months" : `${w} weeks`}
             </option>
           ))}
         </Select>

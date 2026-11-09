@@ -234,7 +234,7 @@ function BookingCard({
       )}
       {!upcoming && (
         <div>
-          <ButtonLink href={`/b/${b.business_id}/book?service=${b.service_id}&staff=${b.staff_id}`} variant="secondary">
+          <ButtonLink href={`/b/${b.business_id}/book?service=${b.service_id}&staff=${b.staff_id}`}>
             Book again
             <span className="sr-only">
               {" "}
