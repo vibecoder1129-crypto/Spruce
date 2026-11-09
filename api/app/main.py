@@ -13,6 +13,8 @@ from app.booking.router import router as booking_router
 from app.booking.waitlist import router as waitlist_router
 from app.business.router import admin_router as business_admin_router
 from app.business.router import router as business_router
+from app.business.support import admin_router as support_admin_router
+from app.business.support import router as support_router
 from app.clients.router import router as clients_router
 from app.config import get_settings
 from app.csrf import CSRFMiddleware
@@ -68,6 +70,8 @@ def create_app() -> FastAPI:
     app.include_router(booking_router)
     app.include_router(customer_router)
     app.include_router(waitlist_router)
+    app.include_router(support_router)
+    app.include_router(support_admin_router)
     app.include_router(marketplace_router)
     app.include_router(clients_router)
     return app

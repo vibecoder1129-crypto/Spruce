@@ -31,7 +31,7 @@ export const STATUS_LABEL = {
   suspended: "Suspended",
 } as const;
 
-type Ctx = { business: Business; reload: () => Promise<void> };
+type Ctx = { business: Business; reload: () => Promise<void>; support: boolean };
 const BusinessContext = createContext<Ctx | null>(null);
 
 export function useBusiness(): Ctx {
@@ -179,9 +179,30 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           pathname === "/dashboard/calendar" ? "max-w-[100rem]" : "max-w-5xl",
         )}
       >
+        {me?.support && business && (
+          <section
+            aria-label="Support mode"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-line-strong bg-warn-soft px-4 py-3"
+          >
+            <p className="text-sm">
+              <span className="font-semibold">You&apos;re helping {business.name} as Spruce support.</span> Every change
+              is logged and the owner can read it.
+            </p>
+            <Button
+              variant="secondary"
+              loading={leaving}
+              onClick={async () => {
+                setLeaving(true);
+                await logOut(router).finally(() => setLeaving(false));
+              }}
+            >
+              End support
+            </Button>
+          </section>
+        )}
         <FormError message={meError ?? error} />
         {business ? (
-          <BusinessContext value={{ business, reload }}>{children}</BusinessContext>
+          <BusinessContext value={{ business, reload, support: !!me?.support }}>{children}</BusinessContext>
         ) : (
           !(meError ?? error) && <p className="text-muted">Loading…</p>
         )}

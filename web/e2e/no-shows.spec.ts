@@ -35,7 +35,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
   await expect(page.getByText(/Customers will read: Cancel or change online up to 24 hours/)).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "Save policy" }).click();
-  await expect(page.getByRole("status")).toHaveText(/^Saved\./);
+  await expect(page.getByRole("form", { name: "Cancellation policy" }).getByRole("status")).toHaveText(/^Saved\./);
 
   // A customer reads it on the venue page and at Confirm, then books two days ahead.
   const email = uniqueEmail("customer");

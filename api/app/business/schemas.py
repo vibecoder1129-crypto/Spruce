@@ -40,6 +40,7 @@ class BusinessOut(BaseModel):
     rejection_note: str | None
     submitted_at: datetime | None
     cancel_window_hours: int
+    support_until: datetime | None
 
 
 class LocationIn(Strict):
@@ -112,3 +113,18 @@ class AdminBusinessOut(BusinessOut):
 class AdminBusinessDetail(BusinessOut):
     locations: list[LocationOut]
     staff: list[StaffOut]
+
+
+class SupportIn(Strict):
+    hours: Literal[0, 24, 72]
+
+
+class SupportAction(BaseModel):
+    at: datetime
+    method: str
+    path: str
+
+
+class SupportOut(BaseModel):
+    until: datetime | None
+    log: list[SupportAction]

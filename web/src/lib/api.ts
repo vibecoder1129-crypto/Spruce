@@ -16,6 +16,8 @@ export type Me = {
   mfa_pending: boolean;
   timezone: string;
   language: string;
+  /** A platform admin is helping as this owner. */
+  support?: boolean;
 };
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "suspended";
@@ -29,7 +31,10 @@ export type Business = {
   rejection_note: string | null;
   submitted_at: string | null;
   cancel_window_hours: number;
+  support_until: string | null;
 };
+
+export type SupportState = { until: string | null; log: { at: string; method: string; path: string }[] };
 
 export type AdminBusiness = Business & { location_count: number; staff_count: number };
 

@@ -68,6 +68,7 @@ def me_out(auth: Auth) -> MeOut:
         mfa_pending=auth.mfa_pending,
         timezone=user.timezone,
         language=user.language,
+        support=auth.session.support_admin_id is not None,
     )
 
 
