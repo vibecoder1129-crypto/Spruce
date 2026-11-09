@@ -26,15 +26,16 @@ import {
 import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
 
-// HLD 4.5: a staff day board from 08:00 to 20:00 in 15-minute slots.
+// HLD 4.5: a staff day board in 15-minute slots. Forms offer 08:00 to 20:00; the board itself
+// shows only the hours someone works or is booked that day.
 const OPEN = 8 * 60;
 const CLOSE = 20 * 60;
 const STEP = 15;
 const ROWS = (CLOSE - OPEN) / STEP;
-const ROW_HEIGHT = { compact: 18, roomy: 30 } as const;
+const ROW = 30;
 const QUARTERS = Array.from({ length: ROWS + 1 }, (_, i) => clock(OPEN + i * STEP));
+const LIVE = new Set(["pending", "confirmed", "completed"]);
 
-type Size = keyof typeof ROW_HEIGHT;
 type View = "board" | "list";
 type Pick =
   | { kind: "booking"; id: string }
@@ -60,7 +61,6 @@ export function DayBoard({ businessId }: { businessId: string }) {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [view, setView] = useState<View>("board");
-  const [size, setSize] = useState<Size>("roomy");
   const [who, setWho] = useState("all");
   const [search, setSearch] = useState("");
   const [pick, setPick] = useState<Pick | null>(null);
@@ -175,12 +175,10 @@ export function DayBoard({ businessId }: { businessId: string }) {
           className="w-52"
         />
         <Toggle label="View" value={view} onChange={setView} options={{ board: "Board", list: "List" }} />
-        {view === "board" && (
-          <Toggle label="Rows" value={size} onChange={setSize} options={{ compact: "Compact", roomy: "Roomy" }} />
-        )}
       </div>
 
       <FormError message={error} />
+      {board && columns.length > 0 && <Summary board={board} columns={columns} bookings={shown} />}
       {notice && (
         <p
           role="status"
@@ -203,7 +201,6 @@ export function DayBoard({ businessId }: { businessId: string }) {
               board={board}
               columns={columns}
               bookings={shown}
-              size={size}
               today={date === isoDate(new Date())}
               slot={slot}
               onSlot={setSlot}
@@ -309,11 +306,105 @@ function Toggle<T extends string>({
 
 // --- the board -------------------------------------------------------------------------------
 
+type Kind = "online" | "walk-in" | "pending" | "done" | "no-show";
+
+/** Colour plus a word for each kind of appointment, so colour never carries meaning alone. */
+const KIND: Record<Kind, { label: string; block: string; swatch: string }> = {
+  online: { label: "Booked online", block: "border-spruce bg-mint-strong", swatch: "border-spruce bg-mint-strong" },
+  "walk-in": {
+    label: "Added by the venue",
+    block: "border-spruce bg-surface ring-1 ring-line-strong",
+    swatch: "border-spruce bg-surface",
+  },
+  pending: { label: "Waiting to confirm", block: "border-ink bg-warn-soft", swatch: "border-ink bg-warn-soft" },
+  done: { label: "Done", block: "border-line-strong bg-ground text-muted", swatch: "border-line-strong bg-ground" },
+  "no-show": { label: "No-show", block: "border-danger bg-danger-soft", swatch: "border-danger bg-danger-soft" },
+};
+
+function kindOf(b: Booking): Kind {
+  if (b.status === "completed") return "done";
+  if (b.status === "no_show") return "no-show";
+  if (b.status === "pending") return "pending";
+  return b.source === "consumer" ? "online" : "walk-in";
+}
+
+/** The hours worth showing: from the earliest shift or booking to the latest, on whole hours. */
+function dayHours(board: Board, columns: Board["staff"], bookings: Booking[]): { open: number; close: number } {
+  const tz = board.timezone;
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (const c of columns) {
+    if (c.shift) {
+      starts.push(toMinutes(c.shift.starts));
+      ends.push(toMinutes(c.shift.ends));
+    }
+  }
+  for (const b of bookings) {
+    starts.push(minutesAt(b.starts_at, tz));
+    ends.push(dayAt(b.ends_at, tz) > board.date ? 24 * 60 : minutesAt(b.ends_at, tz));
+  }
+  if (starts.length === 0) return { open: 9 * 60, close: 17 * 60 };
+  const open = Math.floor(Math.min(...starts) / 60) * 60;
+  const close = Math.min(24 * 60, Math.ceil(Math.max(...ends) / 60) * 60);
+  return { open, close: Math.max(close, open + 60) };
+}
+
+/** The day at a glance for the people shown: what's booked, what's free, what it should bring in. */
+function Summary({ board, columns, bookings }: { board: Board; columns: Board["staff"]; bookings: Booking[] }) {
+  const tz = board.timezone;
+  const live = bookings.filter((b) => LIVE.has(b.status));
+  const length = (b: { starts_at: string; ends_at: string }) =>
+    (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60_000;
+  const booked = live.reduce((sum, b) => sum + length(b), 0);
+  const ids = new Set(columns.map((c) => c.id));
+  const working = columns.reduce(
+    (sum, c) => sum + (c.shift ? toMinutes(c.shift.ends) - toMinutes(c.shift.starts) : 0),
+    0,
+  );
+  const blocked = board.time_off
+    .filter((t) => ids.has(t.staff_id))
+    .reduce((sum, t) => {
+      const from = dayAt(t.starts_at, tz) < board.date ? 0 : minutesAt(t.starts_at, tz);
+      const to = dayAt(t.ends_at, tz) > board.date ? 24 * 60 : minutesAt(t.ends_at, tz);
+      return sum + Math.max(0, to - from);
+    }, 0);
+  const free = Math.max(0, working - booked - blocked);
+  const currency = live[0]?.currency ?? board.services[0]?.currency ?? "EUR";
+  const takings = live.reduce((sum, b) => sum + b.price_minor, 0);
+  const noShows = bookings.filter((b) => b.status === "no_show").length;
+  const items = [
+    { label: "Appointments", value: String(live.length) },
+    { label: "Booked", value: booked ? formatDuration(booked) : "0 min" },
+    { label: "Free time", value: working === 0 ? "No one working" : free ? formatDuration(free) : "Fully booked" },
+    { label: "Expected takings", value: formatPrice(takings, currency) },
+  ];
+  if (noShows) items.push({ label: "No-shows", value: String(noShows) });
+  return (
+    <section aria-label="Day summary" className="flex flex-col gap-3">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {items.map((i) => (
+          <div key={i.label} className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3">
+            <dt className="text-xs font-semibold tracking-[var(--tracking-label)] text-muted uppercase">{i.label}</dt>
+            <dd className="text-lg font-bold tabular-nums">{i.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <ul aria-label="Colour key" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {(Object.keys(KIND) as Kind[]).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className={cn("h-3.5 w-6 rounded-sm border-l-4", KIND[k].swatch)} />
+            {KIND[k].label}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Grid({
   board,
   columns,
   bookings,
-  size,
   today,
   slot,
   onSlot,
@@ -322,17 +413,29 @@ function Grid({
   board: Board;
   columns: Board["staff"];
   bookings: Booking[];
-  size: Size;
   today: boolean;
   slot: Slot | null;
   onSlot: (s: Slot | null) => void;
   onPick: (p: Pick) => void;
 }) {
-  const row = ROW_HEIGHT[size];
-  const height = ROWS * row;
+  const row = ROW;
   const tz = board.timezone;
+  const { open: OPEN, close: CLOSE } = dayHours(board, columns, bookings);
+  const height = ((CLOSE - OPEN) / STEP) * row;
   const top = (minutes: number) => ((Math.max(OPEN, Math.min(CLOSE, minutes)) - OPEN) / STEP) * row;
   const [now, setNow] = useState<number | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Open at the current time today, otherwise at the first appointment.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const first = bookings.length ? Math.min(...bookings.map((b) => minutesAt(b.starts_at, tz))) : OPEN;
+    const at = today ? minutesAt(new Date().toISOString(), tz) - 60 : first - 30;
+    el.scrollTop = Math.max(0, top(at));
+    // Only when the day or location changes, not on every booking edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.date, board.location_id]);
 
   useEffect(() => {
     if (!today) return;
@@ -355,18 +458,24 @@ function Grid({
   const canBook = (id: string) => board.can_book_staff_ids.includes(id);
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
+    <div
+      ref={scroller}
+      tabIndex={0}
+      role="region"
+      aria-label="Day board"
+      className="max-h-[calc(100dvh-13rem)] min-h-96 overflow-auto rounded-[var(--radius-card)] border border-line bg-surface"
+    >
       <div className="flex w-max min-w-full">
         <div aria-hidden="true" className="sticky left-0 z-20 w-14 shrink-0 border-r border-line bg-surface">
-          <div className="h-16 border-b border-line" />
+          <div className="sticky top-0 z-30 h-16 border-b border-line bg-surface" />
           <div className="relative" style={{ height }}>
-            {QUARTERS.filter((_, i) => i % 4 === 0 && i < ROWS).map((t, i) => (
+            {Array.from({ length: (CLOSE - OPEN) / 60 }, (_, i) => (
               <span
-                key={t}
+                key={i}
                 className="absolute right-2 -translate-y-1/2 text-xs text-muted"
                 style={{ top: i * 4 * row }}
               >
-                {i === 0 ? "" : t}
+                {i === 0 ? "" : clock(OPEN + i * 60)}
               </span>
             ))}
           </div>
@@ -388,6 +497,7 @@ function Grid({
                 <p className="text-xs text-muted">{col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}</p>
               </header>
               <div
+                data-opens={OPEN}
                 className={cn("relative bg-ground", clickable && "cursor-pointer")}
                 style={{
                   height,
@@ -441,6 +551,7 @@ function Grid({
                   const end = minutesAt(b.ends_at, tz) || 24 * 60;
                   if (end <= OPEN || start >= CLOSE) return null;
                   const h = Math.max(row, top(end) - top(start));
+                  const kind = kindOf(b);
                   return (
                     <button
                       key={b.id}
@@ -449,16 +560,22 @@ function Grid({
                         e.stopPropagation();
                         onPick({ kind: "booking", id: b.id });
                       }}
-                      className="absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 border-spruce bg-mint-strong px-2 py-1 text-left text-xs shadow-sm transition-transform hover:-translate-y-px hover:shadow-md"
+                      className={cn(
+                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
+                        KIND[kind].block,
+                      )}
                       style={{ top: top(start), height: h - 2 }}
                     >
-                      <span className="block font-bold text-spruce">
+                      <span className={cn("block font-bold", kind === "done" ? "text-muted" : "text-spruce")}>
                         {clock(start)} {b.client_name}
                       </span>{" "}
-                      {b.client_flags.includes("risk") && (
+                      <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>
+                        {b.service_name} · {KIND[kind].label}
+                      </span>
+                      {b.client_flags.length > 0 && h > row * 2.5 && <Flags flags={b.client_flags} className="mt-1" />}
+                      {b.client_flags.includes("risk") && h <= row * 2.5 && (
                         <span className="block font-bold text-danger">{FLAG_TEXT.risk}</span>
                       )}
-                      <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>{b.service_name}</span>
                       <span className="sr-only">(until {clock(end)})</span>
                     </button>
                   );
@@ -590,7 +707,10 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
               <td className="px-4 py-2 font-semibold">
                 {b.client_name} <Flags flags={b.client_flags} />
               </td>
-              <td className="px-4 py-2">{b.service_name}</td>
+              <td className="px-4 py-2">
+                {b.service_name}
+                <span className="block text-xs text-muted">{KIND[kindOf(b)].label}</span>
+              </td>
               <td className="px-4 py-2">{name(b.staff_id)}</td>
               <td className="px-4 py-2 text-right tabular-nums">{formatPrice(b.price_minor, b.currency)}</td>
             </tr>

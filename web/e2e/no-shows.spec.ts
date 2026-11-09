@@ -98,7 +98,7 @@ test("an owner sets a 24-hour window, a customer sees it, and the owner marks a 
     .getByRole("row", { name: /Ana Ozola/ })
     .getByRole("button")
     .click();
-  await expect(page.getByText("No-show", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^No-show$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark as done" })).toHaveCount(0);
   await expectAccessible(page);
 });
