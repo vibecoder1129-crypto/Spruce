@@ -125,6 +125,7 @@ class BookingOut(BaseModel):
     source: BookingSource
     price_minor: int
     currency: str
+    client_flags: list[str]  # "risk", "regular": this venue's view of the customer
 
 
 class BookingDetail(BookingOut):
@@ -172,6 +173,7 @@ class CalendarOut(BaseModel):
     # What the caller may do, so the web can hide what the API would refuse anyway.
     can_block_time: bool
     can_book_staff_ids: list[uuid.UUID]
+    can_mark_staff_ids: list[uuid.UUID]  # whose started visits the caller may mark done or no-show
 
 
 # --- customer booking (slice 5b) -------------------------------------------------------------
@@ -219,6 +221,7 @@ class MyBooking(BaseModel):
     price_minor: int
     currency: str
     can_change: bool
+    cancel_window_hours: int
 
 
 class MyBookingsOut(BaseModel):

@@ -8,6 +8,7 @@ import { FormError } from "@/components/auth-shell";
 import { PublicHeader } from "@/components/public-header";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { api, ApiError, formatPrice, nextStep, parseDate, type Me, type MyBooking, type MyBookings } from "@/lib/api";
+import { policyText } from "@/lib/policy";
 
 function when(booking: MyBooking): string {
   const [d, t] = booking.start.split("T");
@@ -80,6 +81,7 @@ export function MyBookingsPage() {
                     <BookingCard
                       key={b.id}
                       booking={b}
+                      upcoming
                       onCancelled={() => {
                         setNotice(`Cancelled your ${b.service_name} at ${b.business_name}. We've emailed you.`);
                         load();
@@ -111,16 +113,19 @@ export function MyBookingsPage() {
 
 function BookingCard({
   booking: b,
+  upcoming = false,
   onCancelled,
   onError,
 }: {
   booking: MyBooking;
+  upcoming?: boolean;
   onCancelled: () => void;
   onError: (text: string | null) => void;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const cancelled = b.status === "cancelled";
+  const locked = upcoming && !b.can_change && (b.status === "confirmed" || b.status === "pending");
 
   async function cancel() {
     setBusy(true);
@@ -150,6 +155,14 @@ function BookingCard({
         <br />
         {b.address} · {b.timezone.replaceAll("_", " ")} time
       </p>
+      {upcoming && b.can_change && <p className="text-sm">{policyText(b.cancel_window_hours)}</p>}
+      {locked && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-4 py-3 text-sm">
+          {b.cancel_window_hours > 0
+            ? `It's less than ${b.cancel_window_hours} hours to the start, so this booking can't be changed online. To cancel or change it, contact ${b.business_name}.`
+            : `To cancel or change this booking now, contact ${b.business_name}.`}
+        </p>
+      )}
       {b.can_change && !asking && (
         <div className="flex flex-wrap gap-2">
           <ButtonLink

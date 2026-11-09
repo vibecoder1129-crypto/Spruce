@@ -1,10 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   addService,
   approveBusiness,
   createOwner,
   expectAccessible,
+  martaEveryDay,
   ownerWithBusiness,
   PASSWORD,
   uniqueEmail,
@@ -12,21 +13,6 @@ import {
 
 // The venue is in Riga; the owner's board and the customer's "tomorrow" agree on the date.
 test.use({ timezoneId: "Europe/Riga" });
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-/** Marta works every day 09:00 to 17:00, this week and next, so tomorrow always has times. */
-async function martaEveryDay(page: Page) {
-  // Wait for each week's saved shifts to load, so they don't replace what's picked next.
-  const loaded = () => page.waitForResponse((r) => r.url().includes("/shifts?week=") && r.request().method() === "GET");
-  await Promise.all([loaded(), page.goto("/dashboard/team/shifts")]);
-  for (const week of ["This week", "Next week"]) {
-    if (week === "Next week") await Promise.all([loaded(), page.getByRole("button", { name: week }).click()]);
-    for (const day of DAYS) await page.getByLabel(`Marta, ${day}, starts`).selectOption("09:00");
-    await page.getByRole("button", { name: "Save week" }).click();
-    await expect(page.getByText("Unsaved changes")).toBeHidden();
-  }
-}
 
 test("a customer books, signing in at Confirm, then moves and cancels it; the owner sees it", async ({
   page,

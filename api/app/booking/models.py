@@ -132,3 +132,39 @@ class Booking(IdMixin, CreatedMixin, Base):
             where=text("status <> 'cancelled'"),
         ),
     )
+
+
+class CustomerProfile(IdMixin, Base):
+    """What one business knows about one customer's visits there (HLD 4.8, LLD 3.5, 5.6).
+
+    Business-local: the unique pair keeps each venue's counts apart. The flags are worked out
+    from the counts, so they can never disagree with them.
+    """
+
+    __tablename__ = "customer_profiles"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    consumer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    no_show_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "consumer_user_id", name="uq_customer_profiles_pair"),
+    )
+
+    @property
+    def flags(self) -> list[str]:
+        out = []
+        if self.no_show_streak >= RISK_STREAK:
+            out.append("risk")
+        if self.completed_count >= REGULAR_VISITS:
+            out.append("regular")
+        return out
+
+
+RISK_STREAK = 2  # consecutive no-shows (HLD 4.8)
+REGULAR_VISITS = 2  # finished visits

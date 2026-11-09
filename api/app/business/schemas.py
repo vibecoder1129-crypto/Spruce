@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
@@ -22,9 +22,13 @@ class BusinessIn(Strict):
     category: Category
 
 
+CancelWindow = Literal[0, 2, 6, 12, 24, 48]
+
+
 class BusinessPatch(Strict):
     name: Name | None = None
     category: Category | None = None
+    cancel_window_hours: CancelWindow | None = None
 
 
 class BusinessOut(BaseModel):
@@ -35,6 +39,7 @@ class BusinessOut(BaseModel):
     rejection_reason: RejectReason | None
     rejection_note: str | None
     submitted_at: datetime | None
+    cancel_window_hours: int
 
 
 class LocationIn(Strict):

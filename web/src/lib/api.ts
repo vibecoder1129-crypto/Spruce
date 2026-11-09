@@ -28,6 +28,7 @@ export type Business = {
   rejection_reason: string | null;
   rejection_note: string | null;
   submitted_at: string | null;
+  cancel_window_hours: number;
 };
 
 export type AdminBusiness = Business & { location_count: number; staff_count: number };
@@ -101,6 +102,7 @@ export type Booking = {
   source: "consumer" | "owner";
   price_minor: number;
   currency: string;
+  client_flags: ("risk" | "regular")[];
 };
 
 export type BookingDetail = Booking & { guest_phone: string | null; guest_email: string | null; notes: string };
@@ -125,6 +127,7 @@ export type DayBoard = {
   services: BookableService[];
   can_block_time: boolean;
   can_book_staff_ids: string[];
+  can_mark_staff_ids: string[];
 };
 
 /** "YYYY-MM-DD" for a calendar date, without time zone surprises. */
@@ -217,6 +220,7 @@ export type Storefront = {
     staff_ids: string[];
   }[];
   team: { id: string; display_name: string; title: string }[];
+  cancel_window_hours: number;
 };
 
 export type Availability = { date: string; timezone: string; slots: { staff_id: string; time: string }[] };
@@ -238,6 +242,7 @@ export type MyBooking = {
   price_minor: number;
   currency: string;
   can_change: boolean;
+  cancel_window_hours: number;
 };
 
 export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };

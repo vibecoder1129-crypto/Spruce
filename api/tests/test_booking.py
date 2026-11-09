@@ -25,9 +25,11 @@ DAY = (date.fromisoformat(WEEK) + timedelta(days=1)).isoformat()
 TUESDAY_9_TO_5 = {"day": 1, "starts": "09:00", "ends": "17:00"}
 
 
-async def venue(client: AsyncClient, *, approved: bool = True) -> dict[str, str]:
+async def venue(
+    client: AsyncClient, *, approved: bool = True, email: str = "owner@example.lv"
+) -> dict[str, str]:
     """An approved salon: Marta works Tuesday 09:00-17:00 and does a 45-minute haircut."""
-    business_id, staff_id = await team(client)
+    business_id, staff_id = await team(client, email)
     service = await client.post(f"/businesses/{business_id}/services", json=SERVICE)
     service_id = service.json()["id"]
     await client.put(f"/staff/{staff_id}/services", json={"service_ids": [service_id]})

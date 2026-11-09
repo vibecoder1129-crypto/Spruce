@@ -455,6 +455,9 @@ function Grid({
                       <span className="block font-bold text-spruce">
                         {clock(start)} {b.client_name}
                       </span>{" "}
+                      {b.client_flags.includes("risk") && (
+                        <span className="block font-bold text-danger">{FLAG_TEXT.risk}</span>
+                      )}
                       <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>{b.service_name}</span>
                       <span className="sr-only">(until {clock(end)})</span>
                     </button>
@@ -584,7 +587,9 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
                   {clock(minutesAt(b.starts_at, board.timezone))}–{clock(minutesAt(b.ends_at, board.timezone))}
                 </button>
               </td>
-              <td className="px-4 py-2 font-semibold">{b.client_name}</td>
+              <td className="px-4 py-2 font-semibold">
+                {b.client_name} <Flags flags={b.client_flags} />
+              </td>
               <td className="px-4 py-2">{b.service_name}</td>
               <td className="px-4 py-2">{name(b.staff_id)}</td>
               <td className="px-4 py-2 text-right tabular-nums">{formatPrice(b.price_minor, b.currency)}</td>
@@ -597,6 +602,28 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
 }
 
 // --- panels ----------------------------------------------------------------------------------
+
+const FLAG_TEXT = { risk: "2+ no-shows here", regular: "Regular" } as const;
+
+/** This venue's flags for a customer. Text, not colour alone, carries the meaning. */
+function Flags({ flags, className }: { flags: Booking["client_flags"]; className?: string }) {
+  if (flags.length === 0) return null;
+  return (
+    <span className={cn("inline-flex flex-wrap gap-1", className)}>
+      {flags.map((f) => (
+        <span
+          key={f}
+          className={cn(
+            "rounded-full px-2 py-0.5 text-xs font-bold",
+            f === "risk" ? "bg-danger-soft text-danger" : "bg-mint-strong text-spruce",
+          )}
+        >
+          {FLAG_TEXT[f]}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
@@ -786,10 +813,14 @@ function AppointmentPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
-      .then(setDetail)
+      .then((d) => {
+        setDetail(d);
+        setStarted(new Date(d.starts_at).getTime() <= Date.now());
+      })
       .catch((e: unknown) => setError(message(e)));
   }, [id]);
 
@@ -806,7 +837,9 @@ function AppointmentPanel({
   const tz = board.timezone;
   const start = minutesAt(detail.starts_at, tz);
   const end = minutesAt(detail.ends_at, tz);
-  const mayChange = board.can_book_staff_ids.includes(detail.staff_id);
+  const open = detail.status === "pending" || detail.status === "confirmed";
+  const mayChange = open && board.can_book_staff_ids.includes(detail.staff_id);
+  const mayMark = detail.status === "confirmed" && started && board.can_mark_staff_ids.includes(detail.staff_id);
   const person = board.staff.find((s) => s.id === detail.staff_id)?.display_name ?? "";
   const chosen = staff ?? detail.staff_id;
   const people = board.staff.filter((s) => board.can_book_staff_ids.includes(s.id));
@@ -836,6 +869,23 @@ function AppointmentPanel({
     }
   }
 
+  async function mark(outcome: "complete" | "no-show") {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/bookings/${detail.id}/${outcome}`, { method: "PATCH" });
+      await onChanged(
+        outcome === "complete"
+          ? `Marked ${detail.client_name}'s appointment as done.`
+          : `Marked ${detail.client_name} as a no-show.`,
+      );
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
   async function cancel() {
     if (!detail) return;
     setBusy(true);
@@ -852,6 +902,7 @@ function AppointmentPanel({
   return (
     <>
       <PanelHeader title={detail.client_name} onClose={onClose} />
+      <Flags flags={detail.client_flags} />
       <FormError message={error} />
       {!editing ? (
         <div className="flex flex-col gap-4">
@@ -884,7 +935,23 @@ function AppointmentPanel({
             )}
             <dt className="text-muted">Notes</dt>
             <dd className="whitespace-pre-line">{detail.notes || "None"}</dd>
+            {(detail.status === "completed" || detail.status === "no_show") && (
+              <>
+                <dt className="text-muted">Outcome</dt>
+                <dd className="font-semibold">{detail.status === "completed" ? "Done" : "No-show"}</dd>
+              </>
+            )}
           </dl>
+          {mayMark && (
+            <div className="flex flex-wrap gap-2">
+              <Button loading={busy} onClick={() => mark("complete")}>
+                Mark as done
+              </Button>
+              <Button variant="secondary" disabled={busy} onClick={() => mark("no-show")}>
+                No-show
+              </Button>
+            </div>
+          )}
           {mayChange && !confirmCancel && (
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => setEditing(true)}>

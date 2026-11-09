@@ -230,6 +230,7 @@ async def storefront(business_id: uuid.UUID, db: Db) -> StorefrontOut:
             for s in services
         ],
         team=[StoreMember(id=m.id, display_name=m.display_name, title=m.title) for m in team],
+        cancel_window_hours=business.cancel_window_hours,
     )
 
 

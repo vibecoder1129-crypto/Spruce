@@ -77,6 +77,7 @@ class StorefrontOut(BaseModel):
     locations: list[StoreLocation]
     services: list[StoreService]
     team: list[StoreMember]
+    cancel_window_hours: int
 
 
 class FavoriteOut(BaseModel):

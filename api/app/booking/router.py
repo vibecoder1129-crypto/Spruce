@@ -13,7 +13,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
-from app.booking.models import Booking, BookingSource, BookingStatus, TimeOff, WeeklyShift
+from app.booking.models import (
+    Booking,
+    BookingSource,
+    BookingStatus,
+    CustomerProfile,
+    TimeOff,
+    WeeklyShift,
+)
 from app.booking.schemas import (
     BookableService,
     BookingDetail,
@@ -102,6 +109,11 @@ class Actor:
         if Flag.calendar_view not in self.flags:
             return False
         return Flag.calendar_team in self.flags or staff_id == self.staff.id
+
+    def marks(self, staff_id: uuid.UUID) -> bool:
+        if self.staff is None:
+            return True
+        return Flag.checkout_own in self.flags and staff_id == self.staff.id
 
     def books(self, staff_id: uuid.UUID) -> bool:
         if self.staff is None:
@@ -255,7 +267,7 @@ def _guest(booking: Booking) -> dict[str, str | None]:
     return found
 
 
-def _booking_out(booking: Booking, service_name: str) -> BookingOut:
+def _booking_out(booking: Booking, service_name: str, flags: list[str]) -> BookingOut:
     return BookingOut(
         id=booking.id,
         staff_id=booking.staff_id,
@@ -268,7 +280,29 @@ def _booking_out(booking: Booking, service_name: str) -> BookingOut:
         source=booking.source,
         price_minor=booking.price_minor,
         currency=booking.currency,
+        client_flags=flags,
     )
+
+
+async def _flags(db: AsyncSession, bookings: list[Booking]) -> dict[uuid.UUID, list[str]]:
+    """This venue's flags for each booking's customer. Walk-ins have no account, so no flags."""
+    customers = {b.consumer_user_id for b in bookings if b.consumer_user_id is not None}
+    if not customers:
+        return {}
+    profiles = {
+        (p.business_id, p.consumer_user_id): p.flags
+        for p in await db.scalars(
+            select(CustomerProfile).where(
+                CustomerProfile.business_id.in_({b.business_id for b in bookings}),
+                CustomerProfile.consumer_user_id.in_(customers),
+            )
+        )
+    }
+    return {
+        b.id: profiles.get((b.business_id, b.consumer_user_id), [])
+        for b in bookings
+        if b.consumer_user_id is not None
+    }
 
 
 async def _detail(db: AsyncSession, booking: Booking) -> BookingDetail:
@@ -276,8 +310,9 @@ async def _detail(db: AsyncSession, booking: Booking) -> BookingDetail:
         await db.execute(select(Service.name).where(Service.id == booking.service_id))
     ).scalar_one()
     guest = _guest(booking)
+    flags = (await _flags(db, [booking])).get(booking.id, [])
     return BookingDetail(
-        **_booking_out(booking, name).model_dump(),
+        **_booking_out(booking, name, flags).model_dump(),
         guest_phone=guest.get("phone"),
         guest_email=guest.get("email"),
         notes=booking.notes,
@@ -487,6 +522,70 @@ async def cancel_booking(
     return await _detail(db, booking)
 
 
+# --- outcomes (HLD 4.8, LLD 4.3) ---------------------------------------------------------
+
+
+async def _outcome(
+    db: AsyncSession, auth: Auth, booking_id: uuid.UUID, outcome: BookingStatus
+) -> BookingDetail:
+    booking, actor = await _visible_booking(db, auth, booking_id)
+    if not actor.marks(booking.staff_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="You can't mark this appointment.")
+    if booking.status is not BookingStatus.confirmed:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="This appointment can't be marked.")
+    if booking.starts_at > utcnow():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="Mark the appointment once it has started."
+        )
+    booking.status = outcome
+    if booking.consumer_user_id is not None:
+        await _count(db, booking, outcome)
+    audit(
+        db,
+        actor=auth.user.id,
+        action="booking.no_show" if outcome is BookingStatus.no_show else "booking.complete",
+        target_type="booking",
+        target_id=booking.id,
+    )
+    await db.commit()
+    return await _detail(db, booking)
+
+
+async def _count(db: AsyncSession, booking: Booking, outcome: BookingStatus) -> None:
+    """A no-show adds to the streak; a finished visit resets it and counts towards regular."""
+    profile = await db.scalar(
+        select(CustomerProfile)
+        .where(
+            CustomerProfile.business_id == booking.business_id,
+            CustomerProfile.consumer_user_id == booking.consumer_user_id,
+        )
+        .with_for_update()
+    )
+    if profile is None:
+        profile = CustomerProfile(
+            business_id=booking.business_id,
+            consumer_user_id=booking.consumer_user_id,
+            no_show_streak=0,
+            completed_count=0,
+        )
+        db.add(profile)
+    if outcome is BookingStatus.no_show:
+        profile.no_show_streak += 1
+    else:
+        profile.no_show_streak = 0
+        profile.completed_count += 1
+
+
+@router.patch("/bookings/{booking_id}/complete")
+async def complete_booking(booking_id: uuid.UUID, auth: FullySignedIn, db: Db) -> BookingDetail:
+    return await _outcome(db, auth, booking_id, BookingStatus.completed)
+
+
+@router.patch("/bookings/{booking_id}/no-show")
+async def no_show_booking(booking_id: uuid.UUID, auth: FullySignedIn, db: Db) -> BookingDetail:
+    return await _outcome(db, auth, booking_id, BookingStatus.no_show)
+
+
 # --- the day board ---------------------------------------------------------------------------
 
 
@@ -539,17 +638,20 @@ async def day_board(
             )
         )
     }
-    bookings = await db.execute(
-        select(Booking, Service.name)
-        .join(Service, Service.id == Booking.service_id)
-        .where(
-            Booking.staff_id.in_(ids),
-            Booking.status != BookingStatus.cancelled,
-            Booking.starts_at < end,
-            Booking.ends_at > start,
+    bookings = (
+        await db.execute(
+            select(Booking, Service.name)
+            .join(Service, Service.id == Booking.service_id)
+            .where(
+                Booking.staff_id.in_(ids),
+                Booking.status != BookingStatus.cancelled,
+                Booking.starts_at < end,
+                Booking.ends_at > start,
+            )
+            .order_by(Booking.starts_at)
         )
-        .order_by(Booking.starts_at)
-    )
+    ).all()
+    flags = await _flags(db, [b for b, _ in bookings])
     blocks = await db.scalars(
         select(TimeOff)
         .where(TimeOff.staff_id.in_(ids), TimeOff.starts_at < end, TimeOff.ends_at > start)
@@ -591,9 +693,10 @@ async def day_board(
             )
             for s in staff
         ],
-        bookings=[_booking_out(b, name) for b, name in bookings],
+        bookings=[_booking_out(b, name, flags.get(b.id, [])) for b, name in bookings],
         time_off=[_time_off_out(b) for b in blocks],
         services=list(offered.values()),
         can_block_time=actor.is_owner,
         can_book_staff_ids=bookable,
+        can_mark_staff_ids=[s.id for s in staff if actor.marks(s.id)],
     )

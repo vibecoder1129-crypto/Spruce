@@ -20,6 +20,7 @@ import {
   type Me,
   type Storefront,
 } from "@/lib/api";
+import { policyText } from "@/lib/policy";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -87,6 +88,7 @@ export function StorefrontPage() {
                 <p className="mt-1 text-muted">
                   {store.locations.map((l) => l.address_text).join(" · ")} · You pay at the venue.
                 </p>
+                <p className="mt-1 text-sm text-muted">{policyText(store.cancel_window_hours)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <ButtonLink href={`/b/${store.id}/book`}>Book now</ButtonLink>

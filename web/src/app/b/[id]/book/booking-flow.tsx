@@ -23,6 +23,7 @@ import {
   type MyBookings,
   type Storefront,
 } from "@/lib/api";
+import { policyText } from "@/lib/policy";
 import { cn } from "@/lib/cn";
 
 const STEPS = ["Service", "Professional", "Time", "Confirm"] as const;
@@ -506,6 +507,7 @@ function Confirm({
         <Row label="When" value={`${longDate(day)}, ${time} to ${plusMinutes(time, service.duration_minutes)}`} />
         <Row label="Where" value={`${store.name}, ${place?.address_text ?? ""}`} />
         <Row label="Price" value={`${formatPrice(service.price_minor, service.currency)}, paid at the venue`} />
+        <Row label="Cancelling" value={policyText(store.cancel_window_hours)} />
         {movingBooking && (
           <Row
             label="Moving from"

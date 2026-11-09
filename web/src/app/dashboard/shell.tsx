@@ -21,7 +21,7 @@ const NAV: { href: string; label: string; icon: IconName; soon?: boolean }[] = [
   { href: "/dashboard/clients", label: "Clients", icon: "client" },
   { href: "/dashboard/reports", label: "Reports", icon: "reports", soon: true },
   { href: "/dashboard/reviews", label: "Reviews", icon: "reviews", soon: true },
-  { href: "/dashboard/settings", label: "Settings", icon: "settings", soon: true },
+  { href: "/dashboard/settings", label: "Settings", icon: "settings" },
 ];
 
 export const STATUS_LABEL = {

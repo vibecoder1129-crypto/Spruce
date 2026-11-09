@@ -168,14 +168,24 @@ async def availability(
 # --- my bookings -----------------------------------------------------------------------------
 
 
-def _can_change(booking: Booking) -> bool:
-    return booking.status in CHANGEABLE and booking.starts_at > utcnow()
+def _can_change(booking: Booking, window_hours: int) -> bool:
+    """Customers can change a booking until the venue's cancellation window starts."""
+    return (
+        booking.status in CHANGEABLE
+        and booking.starts_at - timedelta(hours=window_hours) > utcnow()
+    )
 
 
 async def _mine(db: AsyncSession, booking: Booking) -> MyBooking:
     row = (
         await db.execute(
-            select(Business.name, Location.name, Location.address_text, Location.timezone)
+            select(
+                Business.name,
+                Location.name,
+                Location.address_text,
+                Location.timezone,
+                Business.cancel_window_hours,
+            )
             .join(Location, Location.business_id == Business.id)
             .where(Business.id == booking.business_id, Location.id == booking.location_id)
         )
@@ -199,7 +209,8 @@ async def _mine(db: AsyncSession, booking: Booking) -> MyBooking:
         status=booking.status,
         price_minor=booking.price_minor,
         currency=booking.currency,
-        can_change=_can_change(booking),
+        can_change=_can_change(booking, row[4]),
+        cancel_window_hours=row[4],
     )
 
 
@@ -338,8 +349,16 @@ async def _own(db: AsyncSession, auth: Auth, booking_id: uuid.UUID) -> Booking:
     )
     if booking is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_YOURS)
-    if not _can_change(booking):
+    window = await db.scalar(
+        select(Business.cancel_window_hours).where(Business.id == booking.business_id)
+    )
+    if booking.status not in CHANGEABLE or booking.starts_at <= utcnow():
         raise HTTPException(status.HTTP_409_CONFLICT, detail="This booking can't be changed now.")
+    if not _can_change(booking, window or 0):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Changes within {window} hours of the start need you to contact the venue.",
+        )
     return booking
 
 

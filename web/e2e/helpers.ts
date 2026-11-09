@@ -154,3 +154,31 @@ asyncio.run(run())`;
     .split("\n")
     .at(-1)!;
 }
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/** Marta works every day 09:00 to 17:00, this week and next, so tomorrow always has times. */
+export async function martaEveryDay(page: Page) {
+  // Wait for each week's saved shifts to load, so they don't replace what's picked next.
+  const loaded = () => page.waitForResponse((r) => r.url().includes("/shifts?week=") && r.request().method() === "GET");
+  await Promise.all([loaded(), page.goto("/dashboard/team/shifts")]);
+  for (const week of ["This week", "Next week"]) {
+    if (week === "Next week") await Promise.all([loaded(), page.getByRole("button", { name: week }).click()]);
+    for (const day of DAYS) await page.getByLabel(`Marta, ${day}, starts`).selectOption("09:00");
+    await page.getByRole("button", { name: "Save week" }).click();
+    await expect(page.getByText("Unsaved changes")).toBeHidden();
+  }
+}
+
+/** Stands in for the clock: the business's bookings started a minute ago, so they can be marked. */
+export function startBookings(name: string) {
+  apiPython(
+    `from sqlalchemy import text
+async def main(db):
+    await db.execute(text("""UPDATE bookings SET starts_at = now() - interval '1 minute',
+        ends_at = now() + interval '44 minutes'
+        WHERE business_id = (SELECT id FROM businesses WHERE name = :n)"""), {"n": os.environ["ARG_NAME"]})
+    await db.commit()`,
+    { ARG_NAME: name },
+  );
+}
