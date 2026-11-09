@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { AuthShell, FormError } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ export function StopEmailsPage() {
   const params = useSearchParams();
   const [state, setState] = useState<"ready" | "busy" | "done">("ready");
   const [error, setError] = useState<string | null>(null);
-  const status = useRef<HTMLParagraphElement>(null);
 
   async function stop() {
     setState("busy");
@@ -24,7 +23,6 @@ export function StopEmailsPage() {
         body: { user_id: params.get("u") ?? "", token: params.get("t") ?? "" },
       });
       setState("done");
-      requestAnimationFrame(() => status.current?.focus());
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
       setState("ready");
@@ -39,7 +37,7 @@ export function StopEmailsPage() {
       }
     >
       {state === "done" ? (
-        <p ref={status} tabIndex={-1} role="status">
+        <p ref={(el) => el?.focus()} tabIndex={-1} role="status">
           You won&apos;t get rebooking reminders any more.
         </p>
       ) : (
