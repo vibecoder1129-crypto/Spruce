@@ -1520,6 +1520,12 @@ function AppointmentPanel({
             </dd>
             <dt className="text-muted">With</dt>
             <dd>{person}</dd>
+            {detail.resource_name && (
+              <>
+                <dt className="text-muted">Room or equipment</dt>
+                <dd>{detail.resource_name}</dd>
+              </>
+            )}
             {detail.guest_phone && (
               <>
                 <dt className="text-muted">Phone</dt>

@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
 
 import { useBusiness } from "../shell";
+import { Rooms } from "./rooms";
 
 const DURATIONS = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
 
@@ -122,6 +123,7 @@ export function ServicesPage() {
               </ul>
             </details>
           )}
+          {services !== null && <Rooms businessId={business.id} services={active} />}
         </div>
         {editing && (
           <ServicePanel

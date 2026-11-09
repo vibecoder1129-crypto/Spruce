@@ -120,6 +120,10 @@ class Booking(IdMixin, CreatedMixin, Base):
     rebook_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Which of the venue's own links it came through (slice 10); None when found on Spruce.
     channel: Mapped[str | None] = mapped_column(String(16))
+    # The room or equipment the visit uses (slice 12); None when the service needs none.
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("resources.id", ondelete="SET NULL"), index=True
+    )
 
     __table_args__ = (
         CheckConstraint("ends_at > starts_at", name="ends_after_starts"),
@@ -133,6 +137,13 @@ class Booking(IdMixin, CreatedMixin, Base):
             name="no_double_booking",
             using="gist",
             where=text("status <> 'cancelled'"),
+        ),
+        ExcludeConstraint(
+            ("resource_id", "="),
+            (text("tstzrange(starts_at, ends_at)"), "&&"),
+            name="no_double_resource",
+            using="gist",
+            where=text("status <> 'cancelled' AND resource_id IS NOT NULL"),
         ),
     )
 

@@ -112,7 +112,15 @@ export type Booking = {
   client_flags: ("risk" | "regular")[];
 };
 
-export type BookingDetail = Booking & { guest_phone: string | null; guest_email: string | null; notes: string };
+export type BookingDetail = Booking & {
+  guest_phone: string | null;
+  guest_email: string | null;
+  notes: string;
+  resource_name: string | null; // room or equipment (slice 12)
+};
+
+/** A room or piece of equipment; a service linked to some needs one of them free (slice 12). */
+export type Resource = { id: string; location_id: string; name: string; service_ids: string[] };
 
 export type BookableService = {
   id: string;

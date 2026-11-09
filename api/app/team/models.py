@@ -126,3 +126,30 @@ class StaffInvite(IdMixin, CreatedMixin, Base):
     invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+
+
+class Resource(IdMixin, CreatedMixin, Base):
+    """A room or a piece of equipment at one location (slice 12). Deleting it frees its bookings."""
+
+    __tablename__ = "resources"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    location_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
+class ServiceResource(Base):
+    """A service with rows here needs one of these resources, free for the whole visit."""
+
+    __tablename__ = "service_resources"
+
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("services.id", ondelete="CASCADE"), primary_key=True
+    )
+    resource_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("resources.id", ondelete="CASCADE"), primary_key=True, index=True
+    )

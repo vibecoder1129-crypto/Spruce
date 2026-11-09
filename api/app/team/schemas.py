@@ -95,3 +95,20 @@ class MyStaffOut(BaseModel):
     location_name: str
     services: list[str]
     permissions: list[Flag]
+
+
+class ResourceIn(Strict):
+    name: Short
+    location_id: uuid.UUID
+
+
+class ResourcePatch(Strict):
+    name: Short | None = None
+    service_ids: Annotated[list[uuid.UUID], Field(max_length=500)] | None = None
+
+
+class ResourceOut(BaseModel):
+    id: uuid.UUID
+    location_id: uuid.UUID
+    name: str
+    service_ids: list[uuid.UUID]

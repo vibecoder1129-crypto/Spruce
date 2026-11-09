@@ -132,6 +132,7 @@ class BookingDetail(BookingOut):
     guest_phone: str | None
     guest_email: str | None
     notes: str
+    resource_name: str | None  # the room or equipment it uses (slice 12)
 
 
 class DayShift(BaseModel):

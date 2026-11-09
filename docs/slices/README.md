@@ -12,7 +12,7 @@ spec first, tests first (with the 401, 403 and 404 denials), and the smallest co
 | 9 | Rebooking reminders and "Book again" | Built |
 | 10 | Book now widget (venue site, Instagram, Google) | Built |
 | 11 | Installable app (PWA) | Built |
-| 12 | Rooms and equipment | |
+| 12 | Rooms and equipment | Built |
 | 13 | Consultation forms and patch tests | |
 | 14 | Checkout, commissions and tips | |
 | 15 | Product stock | |
