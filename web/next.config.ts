@@ -28,7 +28,11 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // The worker must be checked for updates on every visit.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+    ];
   },
   async rewrites() {
     // Same-origin API: session cookies stay first-party and no CORS is needed in the browser.
