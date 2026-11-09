@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
-from app.booking import resources
+from app.booking import consult, resources
 from app.booking.models import (
     Booking,
     BookingSource,
@@ -310,17 +310,20 @@ async def _flags(db: AsyncSession, bookings: list[Booking]) -> dict[uuid.UUID, l
 
 
 async def _detail(db: AsyncSession, booking: Booking) -> BookingDetail:
-    name = (
-        await db.execute(select(Service.name).where(Service.id == booking.service_id))
-    ).scalar_one()
+    service = await db.get_one(Service, booking.service_id)
     guest = _guest(booking)
     flags = (await _flags(db, [booking])).get(booking.id, [])
     return BookingDetail(
-        **_booking_out(booking, name, flags).model_dump(),
+        **_booking_out(booking, service.name, flags).model_dump(),
         guest_phone=guest.get("phone"),
         guest_email=guest.get("email"),
         notes=booking.notes,
         resource_name=await resources.name(db, booking.resource_id),
+        form=await consult.form_state(db, booking, service),
+        needs_patch_test=service.needs_patch_test,
+        patch_test_at=await consult.patch_test_at(
+            db, booking.business_id, booking.consumer_user_id
+        ),
     )
 
 

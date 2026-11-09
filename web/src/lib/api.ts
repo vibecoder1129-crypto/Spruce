@@ -67,6 +67,7 @@ export type Service = {
   currency: string;
   active: boolean;
   rebook_weeks: number;
+  needs_patch_test: boolean; // online bookings need a patch test here first (slice 13)
 };
 
 export type Flag =
@@ -117,6 +118,22 @@ export type BookingDetail = Booking & {
   guest_email: string | null;
   notes: string;
   resource_name: string | null; // room or equipment (slice 12)
+  form: FormState;
+  needs_patch_test: boolean;
+  patch_test_at: string | null; // this customer's last patch test at this venue
+};
+
+/** Whether a visit's consultation form is still to be filled in (slice 13). */
+export type FormState = "none" | "to_fill" | "filled";
+export type Question = { label: string; kind: "text" | "yes_no" };
+/** A venue's consultation form and the services that use it. */
+export type ConsultationForm = { id: string; name: string; questions: Question[]; service_ids: string[] };
+/** One visit's form: the questions as asked, and the answers once given. */
+export type VisitForm = {
+  name: string;
+  questions: Question[];
+  answers: (string | boolean)[] | null;
+  submitted_at: string | null;
 };
 
 /** A room or piece of equipment; a service linked to some needs one of them free (slice 12). */
@@ -242,6 +259,7 @@ export type Storefront = {
     price_minor: number;
     currency: string;
     staff_ids: string[];
+    needs_patch_test: boolean;
   }[];
   team: { id: string; display_name: string; title: string }[];
   cancel_window_hours: number;
@@ -267,6 +285,7 @@ export type MyBooking = {
   currency: string;
   can_change: boolean;
   cancel_window_hours: number;
+  form: FormState;
 };
 
 export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };

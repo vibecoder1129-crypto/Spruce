@@ -19,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import {
   addDays,
   api,
+  ApiError,
   clock,
   dayAt,
   formatDuration,
@@ -31,6 +32,7 @@ import {
   type BookingDetail,
   type DayBoard as Board,
   type TimeOff,
+  type VisitForm,
   type Waiting,
   type WeekBoard,
 } from "@/lib/api";
@@ -1443,6 +1445,12 @@ function AppointmentPanel({
   const open = detail.status === "pending" || detail.status === "confirmed";
   const mayChange = open && board.can_book_staff_ids.includes(detail.staff_id);
   const mayMark = detail.status === "confirmed" && started && board.can_mark_staff_ids.includes(detail.staff_id);
+  // Patch tests are kept on the customer's account at this venue, so not for walk-in guests.
+  const mayRecord =
+    detail.source === "consumer" &&
+    detail.status !== "cancelled" &&
+    detail.needs_patch_test &&
+    board.can_mark_staff_ids.includes(detail.staff_id);
   const person = board.staff.find((s) => s.id === detail.staff_id)?.display_name ?? "";
   const chosen = staff ?? detail.staff_id;
   const people = board.staff.filter((s) => board.can_book_staff_ids.includes(s.id));
@@ -1485,6 +1493,19 @@ function AppointmentPanel({
       );
     } catch (e) {
       setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  async function recordPatchTest() {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
+    } catch (e) {
+      setError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -1544,6 +1565,16 @@ function AppointmentPanel({
             )}
             <dt className="text-muted">Notes</dt>
             <dd className="whitespace-pre-line">{detail.notes || "None"}</dd>
+            {(detail.needs_patch_test || detail.patch_test_at) && (
+              <>
+                <dt className="text-muted">Patch test</dt>
+                <dd>
+                  {detail.patch_test_at
+                    ? `Done ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(new Date(detail.patch_test_at))}`
+                    : "None recorded"}
+                </dd>
+              </>
+            )}
             {(detail.status === "completed" || detail.status === "no_show") && (
               <>
                 <dt className="text-muted">Outcome</dt>
@@ -1551,6 +1582,12 @@ function AppointmentPanel({
               </>
             )}
           </dl>
+          {detail.form !== "none" && <VisitAnswers bookingId={detail.id} state={detail.form} />}
+          {mayRecord && (
+            <Button variant="secondary" className="self-start" disabled={busy} onClick={recordPatchTest}>
+              Record patch test today
+            </Button>
+          )}
           {mayMark && (
             <div className="flex flex-wrap gap-2">
               <Button loading={busy} onClick={() => mark("complete")}>
@@ -1622,6 +1659,67 @@ function AppointmentPanel({
         </form>
       )}
     </>
+  );
+}
+
+/** A visit's consultation answers (slice 13). Fetched only when asked for, since each read is audited. */
+function VisitAnswers({ bookingId, state }: { bookingId: string; state: "to_fill" | "filled" }) {
+  const [form, setForm] = useState<VisitForm | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function show() {
+    setBusy(true);
+    setError(null);
+    try {
+      setForm(await api<VisitForm>(`/bookings/${bookingId}/form`));
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 404
+          ? "Only the owner and the person doing this visit can read the answers."
+          : message(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby={`answers-${bookingId}`}
+      className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-ground p-3"
+    >
+      <h3 id={`answers-${bookingId}`} className="text-sm font-semibold">
+        Consultation form
+      </h3>
+      {state === "to_fill" ? (
+        <p className="text-sm text-muted">Not filled in yet.</p>
+      ) : form ? (
+        <dl className="flex flex-col gap-2 text-sm">
+          {form.questions.map((q, i) => {
+            const a = form.answers?.[i];
+            return (
+              <div key={i}>
+                <dt className="text-muted">{q.label}</dt>
+                <dd className="whitespace-pre-line font-semibold">
+                  {typeof a === "boolean" ? (a ? "Yes" : "No") : a || "No answer"}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <>
+          {error ? (
+            <p className="text-sm">{error}</p>
+          ) : (
+            <Button variant="secondary" className="self-start" loading={busy} onClick={show}>
+              Show answers
+            </Button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

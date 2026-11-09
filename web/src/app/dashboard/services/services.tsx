@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
 
 import { useBusiness } from "../shell";
+import { Forms } from "./forms";
 import { Rooms } from "./rooms";
 
 const DURATIONS = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
@@ -123,6 +124,7 @@ export function ServicesPage() {
               </ul>
             </details>
           )}
+          {services !== null && <Forms businessId={business.id} services={active} />}
           {services !== null && <Rooms businessId={business.id} services={active} />}
         </div>
         {editing && (
@@ -152,7 +154,10 @@ function ServiceRow({ service, selected, onEdit }: { service: Service; selected:
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-semibold">{service.name}</span>
-        <span className="text-sm text-muted">{formatDuration(service.duration_minutes)}</span>
+        <span className="text-sm text-muted">
+          {formatDuration(service.duration_minutes)}
+          {service.needs_patch_test && " · Needs a patch test"}
+        </span>
       </span>
       <span className="font-bold tabular-nums">{formatPrice(service.price_minor, service.currency)}</span>
       <span className="sr-only">Edit</span>
@@ -209,6 +214,7 @@ function ServicePanel({
       duration_minutes: Number(form.get("duration")),
       price_minor: price,
       rebook_weeks: Number(form.get("rebook")),
+      needs_patch_test: form.get("patch") === "on",
     };
     void run(
       () =>
@@ -296,6 +302,22 @@ function ServicePanel({
             </option>
           ))}
         </Select>
+        <label className="flex min-h-11 items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="patch"
+            defaultChecked={service?.needs_patch_test ?? false}
+            aria-describedby="patch-hint"
+            className="mt-0.5 size-5 shrink-0 accent-spruce"
+          />
+          <span>
+            <span className="font-semibold">Needs a patch test</span>
+            <span id="patch-hint" className="block text-muted">
+              Clients can book it online only if you recorded a patch test for them 48 hours to 6 months before. You
+              record it on any of their appointments.
+            </span>
+          </span>
+        </label>
         <Button type="submit" loading={busy}>
           {service ? "Save changes" : "Add service"}
         </Button>

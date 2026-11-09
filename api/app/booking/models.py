@@ -165,6 +165,8 @@ class CustomerProfile(IdMixin, Base):
     )
     no_show_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # When the venue last recorded a patch test for this customer (slice 13).
+    patch_test_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         UniqueConstraint("business_id", "consumer_user_id", name="uq_customer_profiles_pair"),
@@ -205,3 +207,18 @@ class WaitlistEntry(IdMixin, CreatedMixin, Base):
     __table_args__ = (
         UniqueConstraint("consumer_user_id", "service_id", "day", name="uq_waitlist_once"),
     )
+
+
+class FormAnswers(Base):
+    """A customer's consultation answers for one visit (slice 13).
+
+    Health information: the questions as asked and the answers are one encrypted JSON blob.
+    """
+
+    __tablename__ = "form_answers"
+
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("bookings.id", ondelete="CASCADE"), primary_key=True
+    )
+    answers_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

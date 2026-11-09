@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import email as mail
 from app.audit import audit
-from app.booking import resources, waitlist
+from app.booking import consult, resources, waitlist
 from app.booking.models import Booking, BookingSource, BookingStatus, TimeOff, WeeklyShift
 from app.booking.router import (
     CHANGEABLE,
@@ -237,6 +237,7 @@ async def _mine(db: AsyncSession, booking: Booking) -> MyBooking:
         currency=booking.currency,
         can_change=_can_change(booking, row[4]),
         cancel_window_hours=row[4],
+        form=await consult.form_state(db, booking, service),
     )
 
 
@@ -340,6 +341,7 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
     staff, service, starts_at, ends_at = await _place(
         db, business.id, body.staff_id, body.service_id, body.start
     )
+    await consult.check_patch_test(db, auth.user.id, service, starts_at)
     resource_id = await resources.pick(db, service.id, staff.location_id, starts_at, ends_at)
     guest = {"name": body.name, **({"phone": body.phone} if body.phone else {})}
     booking = Booking(
@@ -412,9 +414,10 @@ async def reschedule(
 ) -> MyBooking:
     booking = await _own(db, auth, booking_id)
     freed = (booking.staff_id, booking.starts_at)
-    staff, _, starts_at, ends_at = await _place(
+    staff, service, starts_at, ends_at = await _place(
         db, booking.business_id, body.staff_id or booking.staff_id, booking.service_id, body.start
     )
+    await consult.check_patch_test(db, auth.user.id, service, starts_at)
     booking.resource_id = await resources.pick(
         db, booking.service_id, staff.location_id, starts_at, ends_at, booking
     )

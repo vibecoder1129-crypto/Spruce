@@ -9,12 +9,15 @@ from pydantic import (
     Field,
     NaiveDatetime,
     PlainSerializer,
+    StrictBool,
+    StrictStr,
     StringConstraints,
     model_validator,
 )
 
 from app.booking.models import BookingSource, BookingStatus
 from app.business.schemas import Short, Strict
+from app.team.schemas import Question
 
 
 def _quarter_hour(value: time) -> time:
@@ -128,11 +131,18 @@ class BookingOut(BaseModel):
     client_flags: list[str]  # "risk", "regular": this venue's view of the customer
 
 
+# Whether a visit's consultation form is still to be filled in (slice 13).
+FormState = Literal["none", "to_fill", "filled"]
+
+
 class BookingDetail(BookingOut):
     guest_phone: str | None
     guest_email: str | None
     notes: str
     resource_name: str | None  # the room or equipment it uses (slice 12)
+    form: FormState
+    needs_patch_test: bool
+    patch_test_at: datetime | None  # this customer's last one at this venue
 
 
 class DayShift(BaseModel):
@@ -248,6 +258,7 @@ class MyBooking(BaseModel):
     currency: str
     can_change: bool
     cancel_window_hours: int
+    form: FormState
 
 
 class MyBookingsOut(BaseModel):
@@ -277,3 +288,17 @@ class WaitingOut(BaseModel):
     service_name: str
     joined_at: datetime
     notified: bool
+
+
+TextAnswer = Annotated[StrictStr, StringConstraints(strip_whitespace=True, max_length=1000)]
+
+
+class FormAnswersIn(Strict):
+    answers: Annotated[list[TextAnswer | StrictBool], Field(max_length=30)]
+
+
+class BookingFormOut(BaseModel):
+    name: str
+    questions: list[Question]
+    answers: list[str | bool] | None
+    submitted_at: datetime | None
