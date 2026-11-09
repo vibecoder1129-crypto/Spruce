@@ -377,6 +377,7 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
                   display_name: String(form.get("name")),
                   title: String(form.get("title")),
                   location_id: String(form.get("location")),
+                  commission_percent: Number(form.get("commission")),
                 },
               }),
             "Saved.",
@@ -400,6 +401,21 @@ function Details({ person, places, onChanged }: { person: Staff; places: Place[]
             </option>
           ))}
         </Select>
+        <Field
+          label="Commission (%)"
+          name="commission"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          step={1}
+          defaultValue={person.commission_percent}
+          hint="Their share of each service amount at checkout, from 0 to 100. A change applies to checkouts from now on. Tips go to them in full."
+          data-missing="Enter a percentage from 0 to 100."
+          title="Enter a whole number from 0 to 100."
+          error={details.errors.commission}
+          required
+        />
         <Button type="submit" loading={busy === "save"}>
           Save changes
         </Button>

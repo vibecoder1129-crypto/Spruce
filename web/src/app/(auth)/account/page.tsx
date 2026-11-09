@@ -8,6 +8,7 @@ import { AuthShell, FormError } from "@/components/auth-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { api, ApiError, CATEGORIES, nextStep, type Favorite, type Me } from "@/lib/api";
+import { cn } from "@/lib/cn";
 
 const roleLabel = { consumer: "Customer", owner: "Business owner", staff: "Team member", admin: "Platform admin" };
 
@@ -16,6 +17,7 @@ export default function AccountPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Favorite[] | null>(null);
 
   useEffect(() => {
@@ -104,6 +106,67 @@ export default function AccountPage() {
               ))}
             </ul>
           )}
+        </section>
+      )}
+      {me.role === "consumer" && (
+        <section aria-labelledby="emails" className="flex flex-col gap-2 border-t border-line pt-6">
+          <h2 id="emails" className="font-bold">
+            Emails
+          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p id="rebook-label" className="font-semibold">
+                Rebooking reminders
+              </p>
+              <p id="rebook-meaning" className="text-sm text-muted">
+                One email when you&apos;re usually due back at a venue, with a link to book the same again.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={me.rebook_reminders !== false}
+              aria-labelledby="rebook-label"
+              aria-describedby="rebook-meaning"
+              aria-busy={saving}
+              onClick={async () => {
+                if (saving) return;
+                const was = me;
+                setError(null);
+                setSaving(true);
+                setMe({ ...me, rebook_reminders: me.rebook_reminders === false }); // move at once
+                try {
+                  const next = await api<Me>("/me", {
+                    method: "PATCH",
+                    body: { rebook_reminders: was.rebook_reminders === false },
+                  });
+                  setMe(next);
+                  setNotice(next.rebook_reminders ? "Rebooking reminders are on." : "Rebooking reminders are off.");
+                } catch (e) {
+                  setMe(was);
+                  setError(e instanceof Error ? e.message : "That didn't save.");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="flex min-h-11 min-w-14 shrink-0 items-center justify-center rounded-full"
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "relative h-7 w-12 rounded-full transition-colors duration-200",
+                  me.rebook_reminders !== false ? "bg-spruce" : "bg-line-strong",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 left-1 size-5 rounded-full bg-white shadow transition-transform duration-200",
+                    me.rebook_reminders !== false && "translate-x-5",
+                  )}
+                />
+              </span>
+            </button>
+          </div>
         </section>
       )}
       <p aria-live="polite" className="text-sm text-spruce empty:hidden">

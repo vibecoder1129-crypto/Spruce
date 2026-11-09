@@ -49,6 +49,7 @@ function problem(el: HTMLInputElement | HTMLSelectElement): string | null {
   if (el.type === "checkbox") return el.required && !el.checked ? "Tick this box to continue." : null;
   if (el.required && !value) return el.dataset.missing ?? "Fill this in to continue.";
   if (!value) return null;
+  if (el.type === "number" && !el.validity.valid) return el.title || "Enter a number in the allowed range.";
   if (el.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter an email like name@example.com.";
   if (el.minLength > 0 && el.value.length < el.minLength) {
     return `Use at least ${el.minLength} characters. You have ${el.value.length}.`;

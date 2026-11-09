@@ -39,7 +39,8 @@ async def main(db):
 
 /**
  * An owner account made directly in the database, so the suite stays under the per-IP signup
- * limit. Signing up through the page is covered by the onboarding tests.
+ * limit. Signing up through the page is covered by the onboarding tests. It also clears the
+ * per-IP login count: every test logs in from 127.0.0.1, and the limit is tested in the API suite.
  */
 export function createOwner(email: string, role: "owner" | "consumer" = "owner") {
   apiPython(
@@ -47,7 +48,10 @@ export function createOwner(email: string, role: "owner" | "consumer" = "owner")
 from app.identity.models import Role, User
 from app.identity.schemas import TERMS_VERSION
 from app.models_base import utcnow
+from app.redis import get_redis
 async def main(db):
+    async for key in get_redis().scan_iter("rl:login-ip:*"):
+        await get_redis().delete(key)
     email = os.environ["ARG_EMAIL"]
     db.add(User(
         email_index=email_index(email),
@@ -181,6 +185,33 @@ async def main(db):
     await db.commit()`,
     { ARG_NAME: name },
   );
+}
+
+/** Stands in for the clock: the business's bookings finished six weeks ago and were marked done. */
+export function finishBookings(name: string) {
+  apiPython(
+    `from sqlalchemy import text
+async def main(db):
+    await db.execute(text("""UPDATE bookings SET status = 'completed', starts_at = now() - interval '6 weeks 1 hour',
+        ends_at = now() - interval '6 weeks 15 minutes'
+        WHERE business_id = (SELECT id FROM businesses WHERE name = :n)"""), {"n": os.environ["ARG_NAME"]})
+    await db.commit()`,
+    { ARG_NAME: name },
+  );
+}
+
+/** The one-click stop link a rebooking reminder email carries, for this customer. */
+export function stopLink(email: string): string {
+  return apiPython(
+    `from sqlalchemy import select
+from app.booking.reminders import stop_token
+from app.crypto import email_index
+from app.identity.models import User
+async def main(db):
+    user = await db.scalar(select(User).where(User.email_index == email_index(os.environ["ARG_EMAIL"])))
+    print(f"/emails/stop?u={user.id}&t={stop_token(user.id)}")`,
+    { ARG_EMAIL: email },
+  ).trim();
 }
 
 /** Stands in for a larger venue: `count` more team members at the first location, and a second location. */
