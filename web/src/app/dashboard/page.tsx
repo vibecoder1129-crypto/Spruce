@@ -128,14 +128,20 @@ export default function DashboardHome() {
   );
 }
 
-const PLACES: { value: Channel | "anywhere"; label: string; how: string }[] = [
-  { value: "anywhere", label: "Anywhere", how: "For messages, email or your business card." },
+const PLACES: { value: Channel; label: string; how: string }[] = [
+  { value: "link", label: "Anywhere", how: "For messages, email or your business card." },
   { value: "website", label: "Website", how: "Link a menu item or button on your website to it, or use the button below." },
   { value: "instagram", label: "Instagram", how: "In Instagram, tap Edit profile, then Links, and add it." },
   { value: "google", label: "Google", how: "In your Google Business Profile, edit your profile and add it as your booking link." },
   { value: "facebook", label: "Facebook", how: "On your Facebook page, add a Book now button and paste it there." },
 ];
-const PLACE_NAMES: Record<Channel, string> = { website: "Your website", instagram: "Instagram", google: "Google", facebook: "Facebook" };
+const PLACE_NAMES: Record<Channel, string> = {
+  link: "Your link (messages, email, cards)",
+  website: "Your website",
+  instagram: "Instagram",
+  google: "Google",
+  facebook: "Facebook",
+};
 
 /** Feature list 7.3: the venue's own link and a button for its website, Instagram bio or Google profile (slices 5a, 10). */
 function BookingLink({ businessId, name }: { businessId: string; name: string }) {
@@ -145,23 +151,23 @@ function BookingLink({ businessId, name }: { businessId: string; name: string })
     () => window.location.origin,
     () => "",
   );
-  const [place, setPlace] = useState<Channel | "anywhere">("anywhere");
+  const [place, setPlace] = useState<Channel>("link");
   const [copied, setCopied] = useState<"link" | "button" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [counts, setCounts] = useState<ChannelCount[]>([]);
+  const [counts, setCounts] = useState<ChannelCount[] | null>(null);
+  const [countsFailed, setCountsFailed] = useState(false);
   const base = `${origin}/b/${businessId}/book`;
-  const link = place === "anywhere" ? base : `${base}?from=${place}`;
+  const link = `${base}?from=${place}`;
   const escaped = name.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
   const buttonStyle =
     "display:inline-block;padding:12px 24px;border-radius:999px;" +
     "background:#1b4332;color:#fff;font:600 16px/1.2 sans-serif;text-decoration:none";
   const snippet = `<a href="${base}?from=website" style="${buttonStyle}">Book at ${escaped}</a>`;
-  const total = counts.reduce((sum, c) => sum + c.bookings, 0);
 
   useEffect(() => {
     api<ChannelCount[]>(`/businesses/${businessId}/channels`)
       .then(setCounts)
-      .catch(() => undefined); // the counts are extra; the link works without them
+      .catch(() => setCountsFailed(true));
   }, [businessId]);
 
   async function copy(what: "link" | "button", text: string) {
@@ -209,9 +215,6 @@ function BookingLink({ businessId, name }: { businessId: string; name: string })
       <label htmlFor="booking-link" className="mt-4 block text-sm font-semibold">
         Link
       </label>
-      <p id="booking-link-how" className="text-sm text-muted">
-        {PLACES.find((p) => p.value === place)?.how}
-      </p>
       <div className="mt-1.5 flex flex-wrap gap-2">
         <input
           id="booking-link"
@@ -225,38 +228,53 @@ function BookingLink({ businessId, name }: { businessId: string; name: string })
           <Icon name="copy" /> {copied === "link" ? "Copied" : "Copy link"}
         </Button>
       </div>
-      <label htmlFor="booking-button" className="mt-4 block text-sm font-semibold">
-        Button for your website
-      </label>
-      <figure className="mt-1.5 flex flex-col items-start gap-1.5 rounded-[var(--radius-control)] border border-dashed border-line-strong p-4">
-        <span
-          aria-hidden="true"
-          className="inline-block rounded-full bg-[#1b4332] px-6 py-3 font-sans text-base leading-tight font-semibold text-white"
-        >
-          Book at {name}
-        </span>
-        <figcaption className="text-xs text-muted">How it looks on your website</figcaption>
-      </figure>
-      <textarea
-        id="booking-button"
-        readOnly
-        rows={3}
-        value={snippet}
-        onFocus={(e) => e.currentTarget.select()}
-        className="mt-2 w-full rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 py-2 font-mono text-xs"
-      />
-      <Button variant="secondary" className="mt-2" onClick={() => copy("button", snippet)}>
-        <Icon name="copy" /> {copied === "button" ? "Copied" : "Copy button code"}
-      </Button>
+      <p id="booking-link-how" className="mt-1.5 text-sm text-muted">
+        {PLACES.find((p) => p.value === place)?.how}
+      </p>
+      {place === "website" && (
+        <>
+          <label htmlFor="booking-button" className="mt-4 block text-sm font-semibold">
+            Button for your website
+          </label>
+          <figure className="mt-1.5 flex flex-col items-start gap-1.5 rounded-[var(--radius-control)] border border-dashed border-line-strong p-4">
+            <span
+              aria-hidden="true"
+              className="inline-block rounded-full bg-[#1b4332] px-6 py-3 font-sans text-base leading-tight font-semibold text-white"
+            >
+              Book at {name}
+            </span>
+            <figcaption className="text-xs text-muted">
+              How it looks on your website. To match your colours, change #1b4332 in the code.
+            </figcaption>
+          </figure>
+          <textarea
+            id="booking-button"
+            readOnly
+            rows={3}
+            value={snippet}
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-2 w-full rounded-[var(--radius-control)] border border-line-strong bg-ground px-3 py-2 font-mono text-xs"
+          />
+          <Button variant="secondary" className="mt-2" onClick={() => copy("button", snippet)}>
+            <Icon name="copy" /> {copied === "button" ? "Copied" : "Copy button code"}
+          </Button>
+        </>
+      )}
       <p role="status" className="sr-only">
         {copied ? "Copied to your clipboard." : ""}
       </p>
-      {total > 0 && (
-        <section aria-labelledby="channels-title" className="mt-6 border-t border-line pt-4">
-          <h3 id="channels-title" className="font-bold">
-            Where online bookings came from
-          </h3>
-          <p className="text-sm text-muted">Last 30 days</p>
+      <section aria-labelledby="channels-title" className="mt-6 border-t border-line pt-4">
+        <h3 id="channels-title" className="font-bold">
+          Where online bookings came from
+        </h3>
+        <p className="text-sm text-muted">Last 30 days</p>
+        {countsFailed ? (
+          <p className="mt-2 text-sm">Couldn&apos;t load these counts. Reload the page to try again.</p>
+        ) : counts === null ? (
+          <p className="mt-2 text-sm text-muted">Loading…</p>
+        ) : counts.length === 0 ? (
+          <p className="mt-2 text-sm">No online bookings yet. Share a link above to start.</p>
+        ) : (
           <dl className="mt-2 flex flex-col gap-1.5">
             {counts.map((c) => (
               <div key={c.channel ?? "spruce"} className="flex items-baseline justify-between gap-3 text-sm">
@@ -265,8 +283,8 @@ function BookingLink({ businessId, name }: { businessId: string; name: string })
               </div>
             ))}
           </dl>
-        </section>
-      )}
+        )}
+      </section>
     </section>
   );
 }

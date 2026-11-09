@@ -33,14 +33,21 @@ test("an owner shares an Instagram link, a customer books through it, and Home c
   // Each place gets its own link; the website button is shown as it will look.
   await page.goto("/dashboard");
   const share = page.getByRole("region", { name: "Your booking link" });
-  await expect(share.getByLabel("Link")).toHaveValue(/\/book$/);
+  await expect(share.getByLabel("Link")).toHaveValue(/\/book\?from=link$/);
+  // Before any booking, the counts say how to start.
+  await expect(share.getByRole("region", { name: "Where online bookings came from" })).toContainText(
+    "No online bookings yet",
+  );
+  // The website button only shows for Website.
+  await expect(share.getByLabel("Button for your website")).toHaveCount(0);
+  await share.getByText("Website", { exact: true }).click();
+  await expect(share.getByText(/How it looks on your website/)).toBeVisible();
+  await expect(share.getByLabel("Button for your website")).toHaveValue(/\/book\?from=website"/);
   await share.getByText("Instagram", { exact: true }).click();
   await expect(share.getByRole("radio", { name: "Instagram" })).toBeChecked();
   await expect(share.getByLabel("Link")).toHaveValue(/\/book\?from=instagram$/);
   await expect(share.getByText(/tap Edit profile, then Links/)).toBeVisible();
-  await expect(share.getByText("How it looks on your website")).toBeVisible();
-  await expect(share.getByLabel("Button for your website")).toHaveValue(/\/book\?from=website"/);
-  await expect(share.getByRole("region", { name: "Where online bookings came from" })).toHaveCount(0);
+  await expect(share.getByLabel("Button for your website")).toHaveCount(0);
   await expectAccessible(page);
   // Keyboard: arrow keys move between places.
   await share.getByRole("radio", { name: "Instagram" }).focus();

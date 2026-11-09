@@ -206,7 +206,7 @@ class AvailabilityOut(BaseModel):
     slots: list[Slot]
 
 
-Channel = Literal["website", "instagram", "google", "facebook"]
+Channel = Literal["link", "website", "instagram", "google", "facebook"]
 
 
 class CustomerBookingIn(Strict):

@@ -264,7 +264,7 @@ export type MyBooking = {
 export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };
 
 /** Places a venue shares its own booking link (slice 10). Bookings tagged `?from=` count towards these. */
-export const CHANNELS = ["website", "instagram", "google", "facebook"] as const;
+export const CHANNELS = ["link", "website", "instagram", "google", "facebook"] as const;
 export type Channel = (typeof CHANNELS)[number];
 export type ChannelCount = { channel: Channel | null; bookings: number };
 

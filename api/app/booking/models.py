@@ -118,7 +118,7 @@ class Booking(IdMixin, CreatedMixin, Base):
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rebook_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The venue's own link it came through (slice 10); None when found on Spruce.
+    # Which of the venue's own links it came through (slice 10); None when found on Spruce.
     channel: Mapped[str | None] = mapped_column(String(16))
 
     __table_args__ = (

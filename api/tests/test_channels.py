@@ -23,13 +23,14 @@ async def test_bookings_remember_where_they_came_from(client: AsyncClient) -> No
         await booked(ilze, ids, time="13:00")  # found on Spruce
         # Cancelled bookings still count: the link did its job.
         assert (await ana.patch(f"/bookings/{first['id']}/cancel")).status_code == 200
-        bad = await ana.post("/bookings", json=request(ids, time="14:00", channel="tiktok"))
+        await booked(ana, ids, time="14:00", channel="link")  # shared by message or card
+        bad = await ana.post("/bookings", json=request(ids, time="15:00", channel="tiktok"))
         assert bad.status_code == 422
     # Walk-ins are not online bookings.
     walk_in = {
         "staff_id": ids["staff"],
         "service_id": ids["service"],
-        "start": f"{DAY}T15:00",
+        "start": f"{DAY}T16:00",
         "guest": {"name": "Liga"},
     }
     made = await client.post(f"/businesses/{ids['business']}/bookings/walk-in", json=walk_in)
@@ -37,7 +38,7 @@ async def test_bookings_remember_where_they_came_from(client: AsyncClient) -> No
 
     response = await client.get(url)
     assert response.status_code == 200, response.text
-    assert counts(response.json()) == {"instagram": 2, "website": 1, None: 1}
+    assert counts(response.json()) == {"instagram": 2, "website": 1, "link": 1, None: 1}
     # Most first.
     assert response.json()[0]["channel"] == "instagram"
 

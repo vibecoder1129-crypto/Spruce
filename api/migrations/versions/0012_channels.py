@@ -1,4 +1,4 @@
-"""Where an online booking came from: the venue's website, Instagram, Google or Facebook (slice 10).
+"""Where an online booking came from: the venue's own link, website, Instagram, Google or Facebook.
 
 Revision ID: 0012
 Revises: 0011
@@ -16,7 +16,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column("bookings", sa.Column("channel", sa.String(16)))
     op.create_check_constraint(
-        "booking_channels", "bookings", "channel IN ('website', 'instagram', 'google', 'facebook')"
+        "booking_channels",
+        "bookings",
+        "channel IN ('link', 'website', 'instagram', 'google', 'facebook')",
     )
 
 
