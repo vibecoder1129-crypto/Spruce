@@ -127,6 +127,12 @@ export function SignupForm() {
           required
         />
         <TermsCheckbox error={errors.terms} onChange={() => clear("terms")} />
+        {role === "consumer" && (
+          <p className="text-sm text-muted">
+            After a visit, we may email you once when you&apos;re usually due back. You can stop these emails from any
+            of them, or in your account.
+          </p>
+        )}
         {role === "owner" && (
           <p className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm text-ink">
             Business accounts use two-step verification. You&apos;ll set it up next, with an

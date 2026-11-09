@@ -38,6 +38,10 @@ class User(IdMixin, CreatedMixin, Base):
     email_index: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True, nullable=False)
     email_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Customers' "time to rebook" emails (slice 9). They can turn them off in their account.
+    rebook_reminders: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Europe/Riga")
