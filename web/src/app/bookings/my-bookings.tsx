@@ -7,7 +7,17 @@ import { useCallback, useEffect, useState } from "react";
 import { FormError } from "@/components/auth-shell";
 import { PublicHeader } from "@/components/public-header";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { api, ApiError, formatPrice, nextStep, parseDate, type Me, type MyBooking, type MyBookings } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  formatPrice,
+  nextStep,
+  parseDate,
+  type Me,
+  type MyBooking,
+  type MyBookings,
+  type WaitlistEntry,
+} from "@/lib/api";
 import { policyText } from "@/lib/policy";
 
 function when(booking: MyBooking): string {
@@ -20,10 +30,14 @@ function when(booking: MyBooking): string {
 export function MyBookingsPage() {
   const router = useRouter();
   const [data, setData] = useState<MyBookings | null>(null);
+  const [waiting, setWaiting] = useState<WaitlistEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
+    api<WaitlistEntry[]>("/me/waitlist")
+      .then(setWaiting)
+      .catch(() => undefined); // the bookings call below reports a signed-out visit
     api<MyBookings>("/me/bookings")
       .then(setData)
       .catch((e: unknown) => {
@@ -92,6 +106,58 @@ export function MyBookingsPage() {
                 </ul>
               )}
             </section>
+            {waiting.length > 0 && (
+              <section aria-labelledby="waitlist" className="flex flex-col gap-3">
+                <h2 id="waitlist" className="text-xl font-bold">
+                  Waitlist
+                </h2>
+                <ul className="flex flex-col gap-3">
+                  {waiting.map((w) => (
+                    <li
+                      key={w.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          {w.service_name} at {w.business_name}
+                        </p>
+                        <p className="text-sm text-muted">
+                          {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(
+                            parseDate(w.date),
+                          )}
+                          {w.notified
+                            ? ". A time opened up and we emailed you."
+                            : ". We'll email you if a time frees up."}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {w.notified && (
+                          <ButtonLink
+                            href={`/b/${w.business_id}/book?service=${w.service_id}&staff=any&date=${w.date}`}
+                          >
+                            See times
+                          </ButtonLink>
+                        )}
+                        <Button
+                          variant="secondary"
+                          onClick={async () => {
+                            try {
+                              await api(`/me/waitlist/${w.id}`, { method: "DELETE" });
+                              setNotice(`You've left the waitlist for ${w.service_name} at ${w.business_name}.`);
+                              load();
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : "That didn't work.");
+                            }
+                          }}
+                        >
+                          Leave<span className="sr-only"> the waitlist for {w.service_name}</span>
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {data.past.length > 0 && (
               <section aria-labelledby="past" className="flex flex-col gap-3">
                 <h2 id="past" className="text-xl font-bold">

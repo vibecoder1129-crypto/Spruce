@@ -498,9 +498,10 @@ async def edit_booking(
     await _flush_booking(db)
     await db.commit()
     if moved:
-        from app.booking import customer
+        from app.booking import customer, waitlist
 
         await customer.notify(db, booking, "moved")
+        await waitlist.offer(db, booking.business_id, *before)
     return await _detail(db, booking)
 
 
@@ -508,7 +509,8 @@ async def edit_booking(
 async def cancel_booking(
     booking_id: uuid.UUID, auth: FullySignedIn, db: Db
 ) -> BookingDetail | MyBooking:
-    from app.booking import customer  # the customer side lives there and imports this module
+    # the customer side and the waitlist import this module
+    from app.booking import customer, waitlist
 
     if auth.user.role is Role.consumer:
         return await customer.cancel_own(db, auth, booking_id)
@@ -521,6 +523,7 @@ async def cancel_booking(
     )
     await db.commit()
     await customer.notify(db, booking, "cancelled")
+    await waitlist.offer(db, booking.business_id, booking.staff_id, booking.starts_at)
     return await _detail(db, booking)
 
 

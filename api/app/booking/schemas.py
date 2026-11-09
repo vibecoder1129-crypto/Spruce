@@ -243,3 +243,27 @@ class MyBooking(BaseModel):
 class MyBookingsOut(BaseModel):
     upcoming: list[MyBooking]
     past: list[MyBooking]
+
+
+class WaitlistIn(Strict):
+    service_id: uuid.UUID
+    date: date
+    name: Short
+
+
+class MyWaitlistEntry(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    business_name: str
+    service_id: uuid.UUID
+    service_name: str
+    date: date
+    notified: bool
+
+
+class WaitingOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    service_name: str
+    joined_at: datetime
+    notified: bool

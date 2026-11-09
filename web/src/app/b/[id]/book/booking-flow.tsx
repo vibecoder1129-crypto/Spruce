@@ -22,6 +22,7 @@ import {
   type MyBooking,
   type MyBookings,
   type Storefront,
+  type WaitlistEntry,
 } from "@/lib/api";
 import { policyText } from "@/lib/policy";
 import { cn } from "@/lib/cn";
@@ -255,6 +256,8 @@ export function BookingFlow() {
           onTime={(t, who) => go({ date: day, time: t, with: who })}
           onChangeService={() => go({ service: null, staff: null, time: null, with: null })}
           onChangeStaff={() => go({ staff: null, time: null, with: null })}
+          me={me}
+          here={here}
         />
       )}
 
@@ -323,7 +326,11 @@ function TimeStep({
   onTime,
   onChangeService,
   onChangeStaff,
+  me,
+  here,
 }: {
+  me: Me | null | undefined;
+  here: string;
   businessId: string;
   service: Storefront["services"][number];
   staff: string;
@@ -396,9 +403,12 @@ function TimeStep({
       <div aria-live="polite">
         {slots === null && !failed && <p className="text-muted">Finding open times…</p>}
         {slots && times.length === 0 && (
-          <p className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-5 text-muted">
-            No open times on this day. Try another day{staff !== ANY ? " or anyone available" : ""}.
-          </p>
+          <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-5">
+            <p className="text-muted">
+              No open times on this day. Try another day{staff !== ANY ? " or anyone available" : ""}.
+            </p>
+            {staff === ANY && <Waitlist key={day} serviceId={service.id} day={day} me={me} here={here} />}
+          </div>
         )}
         {times.length > 0 && (
           <div className="flex flex-col gap-4">
@@ -426,6 +436,95 @@ function TimeStep({
         )}
       </div>
     </section>
+  );
+}
+
+/** On a full day, a customer can wait for a time; everyone waiting is emailed when one frees up. */
+function Waitlist({
+  serviceId,
+  day,
+  me,
+  here,
+}: {
+  serviceId: string;
+  day: string;
+  me: Me | null | undefined;
+  here: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [joined, setJoined] = useState<WaitlistEntry | null>(null);
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
+
+  if (me === undefined) return null;
+  if (me === null) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <ButtonLink href={`/login?next=${encodeURIComponent(here)}`} variant="secondary">
+          Log in to join the waitlist
+        </ButtonLink>
+      </div>
+    );
+  }
+  if (me.role !== "consumer") return null;
+  if (joined) {
+    return (
+      <p role="status" className="rounded-[var(--radius-control)] bg-mint p-4 font-semibold">
+        You&apos;re on the waitlist for {longDate(joined.date)}. We&apos;ll email you if a time frees up.
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <div>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          Join the waitlist for this day
+        </Button>
+      </div>
+    );
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+    if (!name) return setNameError("Enter your name.");
+    setBusy(true);
+    setError(null);
+    try {
+      setJoined(
+        await api<WaitlistEntry>("/me/waitlist", { method: "POST", body: { service_id: serviceId, date: day, name } }),
+      );
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-3" aria-label="Join the waitlist">
+      <p className="text-sm">
+        If someone cancels on {longDate(day)}, we&apos;ll email you. The time goes to whoever books first.
+      </p>
+      <Field
+        label="Your name"
+        name="name"
+        autoComplete="name"
+        required
+        className="max-w-sm"
+        error={nameError}
+        onChange={() => setNameError(undefined)}
+      />
+      <FormError message={error} />
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" disabled={busy}>
+          {busy ? "Joining…" : "Join waitlist"}
+        </Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>
+          Not now
+        </Button>
+      </div>
+    </form>
   );
 }
 

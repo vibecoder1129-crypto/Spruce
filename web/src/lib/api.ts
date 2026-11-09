@@ -256,6 +256,18 @@ export type MyBooking = {
 
 export type MyBookings = { upcoming: MyBooking[]; past: MyBooking[] };
 
+export type WaitlistEntry = {
+  id: string;
+  business_id: string;
+  business_name: string;
+  service_id: string;
+  service_name: string;
+  date: string;
+  notified: boolean;
+};
+
+export type Waiting = { id: string; name: string; service_name: string; joined_at: string; notified: boolean };
+
 /** A same-site path to return to after signing in, or null. Never another origin. */
 export function safeNext(value: string | null): string | null {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;

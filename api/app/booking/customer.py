@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import email as mail
 from app.audit import audit
+from app.booking import waitlist
 from app.booking.models import Booking, BookingSource, BookingStatus, TimeOff, WeeklyShift
 from app.booking.router import (
     CHANGEABLE,
@@ -124,24 +125,23 @@ async def _open_times(
     return times
 
 
-@router.get("/marketplace/businesses/{business_id}/availability")
-async def availability(
+async def open_slots(
+    db: AsyncSession,
     business_id: uuid.UUID,
-    db: Db,
     service_id: uuid.UUID,
-    day: Annotated[date, Query(alias="date")],
+    day: date,
     staff_id: uuid.UUID | None = None,
-) -> AvailabilityOut:
-    business = await _public(db, business_id)
+) -> tuple[str, list[Slot]]:
+    """The venue's time zone and every open start for the service that day, by time then person."""
     query = (
         select(StaffProfile)
         .join(StaffService, StaffService.staff_id == StaffProfile.id)
         .join(Service, Service.id == StaffService.service_id)
         .where(
-            StaffProfile.business_id == business.id,
+            StaffProfile.business_id == business_id,
             StaffProfile.active.is_(True),
             Service.id == service_id,
-            Service.business_id == business.id,
+            Service.business_id == business_id,
             Service.active.is_(True),
         )
         .order_by(StaffProfile.created_at)
@@ -158,11 +158,20 @@ async def availability(
         for time in await _open_times(db, staff, staff_zone, day, minutes):
             slots.append((time, order, staff.id))
     slots.sort()
-    return AvailabilityOut(
-        date=day,
-        timezone=zone,
-        slots=[Slot(staff_id=staff_id, time=time) for time, _, staff_id in slots],
-    )
+    return zone, [Slot(staff_id=who, time=time) for time, _, who in slots]
+
+
+@router.get("/marketplace/businesses/{business_id}/availability")
+async def availability(
+    business_id: uuid.UUID,
+    db: Db,
+    service_id: uuid.UUID,
+    day: Annotated[date, Query(alias="date")],
+    staff_id: uuid.UUID | None = None,
+) -> AvailabilityOut:
+    business = await _public(db, business_id)
+    zone, slots = await open_slots(db, business.id, service_id, day, staff_id)
+    return AvailabilityOut(date=day, timezone=zone, slots=slots)
 
 
 # --- my bookings -----------------------------------------------------------------------------
@@ -336,6 +345,7 @@ async def book(body: CustomerBookingIn, auth: Customer, db: Db) -> MyBooking:
     audit(
         db, actor=auth.user.id, action="booking.create", target_type="booking", target_id=booking.id
     )
+    await waitlist.booked(db, booking)
     await db.commit()
     await notify(db, booking, "confirmed")
     return await _mine(db, booking)
@@ -372,6 +382,7 @@ async def cancel_own(db: AsyncSession, auth: Auth, booking_id: uuid.UUID) -> MyB
     )
     await db.commit()
     await notify(db, booking, "cancelled")
+    await waitlist.offer(db, booking.business_id, booking.staff_id, booking.starts_at)
     return await _mine(db, booking)
 
 
@@ -380,6 +391,7 @@ async def reschedule(
     booking_id: uuid.UUID, body: RescheduleIn, auth: Customer, db: Db
 ) -> MyBooking:
     booking = await _own(db, auth, booking_id)
+    freed = (booking.staff_id, booking.starts_at)
     staff, _, starts_at, ends_at = await _place(
         db, booking.business_id, body.staff_id or booking.staff_id, booking.service_id, body.start
     )
@@ -391,4 +403,5 @@ async def reschedule(
     await _flush_booking(db)
     await db.commit()
     await notify(db, booking, "moved")
+    await waitlist.offer(db, booking.business_id, *freed)
     return await _mine(db, booking)

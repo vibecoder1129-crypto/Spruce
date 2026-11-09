@@ -39,7 +39,8 @@ async def main(db):
 
 /**
  * An owner account made directly in the database, so the suite stays under the per-IP signup
- * limit. Signing up through the page is covered by the onboarding tests.
+ * limit. Signing up through the page is covered by the onboarding tests. It also clears the
+ * per-IP login count: every test logs in from 127.0.0.1, and the limit is tested in the API suite.
  */
 export function createOwner(email: string, role: "owner" | "consumer" = "owner") {
   apiPython(
@@ -47,7 +48,10 @@ export function createOwner(email: string, role: "owner" | "consumer" = "owner")
 from app.identity.models import Role, User
 from app.identity.schemas import TERMS_VERSION
 from app.models_base import utcnow
+from app.redis import get_redis
 async def main(db):
+    async for key in get_redis().scan_iter("rl:login-ip:*"):
+        await get_redis().delete(key)
     email = os.environ["ARG_EMAIL"]
     db.add(User(
         email_index=email_index(email),

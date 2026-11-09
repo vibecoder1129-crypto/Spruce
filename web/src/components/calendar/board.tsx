@@ -31,6 +31,7 @@ import {
   type BookingDetail,
   type DayBoard as Board,
   type TimeOff,
+  type Waiting,
   type WeekBoard,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -81,6 +82,7 @@ export function DayBoard({ businessId }: { businessId: string }) {
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
 
   const fetchBoard = useCallback(() => {
     const query = new URLSearchParams({ date });
@@ -99,6 +101,13 @@ export function DayBoard({ businessId }: { businessId: string }) {
       .then(setBoard)
       .catch((e: unknown) => setError(message(e)));
   }, [fetchBoard]);
+
+  // Who is waiting for a time that day. Refreshed with the board; staff without the calendar get none.
+  useEffect(() => {
+    api<Waiting[]>(`/businesses/${businessId}/waitlist?date=${date}`)
+      .then(setWaiting)
+      .catch(() => setWaiting([]));
+  }, [businessId, date, refreshed]);
 
   // Live updates: refetch while the tab is visible, and say when an online booking arrives.
   useEffect(() => {
@@ -281,6 +290,7 @@ export function DayBoard({ businessId }: { businessId: string }) {
 
       <FormError message={error} />
       {board && columns.length > 0 && view !== "week" && <Summary board={board} columns={columns} bookings={shown} />}
+      {view !== "week" && waiting.length > 0 && <WaitingList waiting={waiting} />}
       {notice && (
         <p
           role="status"
@@ -592,6 +602,28 @@ function dayHours(board: Board, columns: Board["staff"], bookings: Booking[]): {
 }
 
 /** The day at a glance for the people shown: what's booked, what's free, what it should bring in. */
+function WaitingList({ waiting }: { waiting: Waiting[] }) {
+  return (
+    <section
+      aria-labelledby="waiting"
+      className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3"
+    >
+      <h2 id="waiting" className="text-sm font-semibold">
+        Waiting for a time ({waiting.length})
+      </h2>
+      <p className="text-sm text-muted">If you cancel or move an appointment, they&apos;re emailed straight away.</p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {waiting.map((w) => (
+          <li key={w.id} className="rounded-full bg-ground px-3 py-1.5 text-sm">
+            <span className="font-semibold">{w.name}</span> · {w.service_name}
+            {w.notified && <span className="text-muted"> · emailed</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Summary({ board, columns, bookings }: { board: Board; columns: Board["staff"]; bookings: Booking[] }) {
   const tz = board.timezone;
   const live = bookings.filter((b) => LIVE.has(b.status));

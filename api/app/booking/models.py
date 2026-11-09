@@ -168,3 +168,26 @@ class CustomerProfile(IdMixin, Base):
 
 RISK_STREAK = 2  # consecutive no-shows (HLD 4.8)
 REGULAR_VISITS = 2  # finished visits
+
+
+class WaitlistEntry(IdMixin, CreatedMixin, Base):
+    """A customer waiting for a time for one service on one local day (slice 7)."""
+
+    __tablename__ = "waitlist_entries"
+
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("services.id", ondelete="CASCADE"), nullable=False
+    )
+    consumer_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    name_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("consumer_user_id", "service_id", "day", name="uq_waitlist_once"),
+    )
