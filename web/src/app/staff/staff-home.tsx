@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { initials } from "@/components/storefront-preview";
+import { TakingsReport } from "@/components/takings";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { useFieldErrors } from "@/lib/form-errors";
@@ -127,6 +128,17 @@ export function StaffHome() {
               </ul>
               <p className="text-sm text-muted">Your manager plans the shifts. Ask them if something needs to change.</p>
             </section>
+            {mine.permissions.includes("reports.own") && (
+              <section
+                aria-labelledby="takings-title"
+                className="rise flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-6"
+              >
+                <h2 id="takings-title" className="text-lg font-bold">
+                  Your takings
+                </h2>
+                <TakingsReport url="/me/takings" mine />
+              </section>
+            )}
             <div className="grid gap-6 md:grid-cols-2">
               <section
                 aria-labelledby="services-title"

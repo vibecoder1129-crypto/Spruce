@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 
 import { FormError } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
@@ -10,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import {
   addDays,
   api,
+  ApiError,
   clock,
   dayAt,
   formatDuration,
@@ -21,10 +31,15 @@ import {
   type Booking,
   type BookingDetail,
   type DayBoard as Board,
+  type PaymentMethod,
   type TimeOff,
+  type VisitForm,
+  type Waiting,
   type WeekBoard,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+
+import { initials, staffColors, type StaffColor } from "./colors";
 import { useFieldErrors } from "@/lib/form-errors";
 
 // HLD 4.5: a staff day board in 15-minute slots. Forms offer 08:00 to 20:00; the board itself
@@ -63,12 +78,14 @@ export function DayBoard({ businessId }: { businessId: string }) {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [view, setView] = useState<View>("board");
-  const [who, setWho] = useState("all");
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [person, setPerson] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pick, setPick] = useState<Pick | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
 
   const fetchBoard = useCallback(() => {
     const query = new URLSearchParams({ date });
@@ -87,6 +104,13 @@ export function DayBoard({ businessId }: { businessId: string }) {
       .then(setBoard)
       .catch((e: unknown) => setError(message(e)));
   }, [fetchBoard]);
+
+  // Who is waiting for a time that day. Refreshed with the board; staff without the calendar get none.
+  useEffect(() => {
+    api<Waiting[]>(`/businesses/${businessId}/waitlist?date=${date}`)
+      .then(setWaiting)
+      .catch(() => setWaiting([]));
+  }, [businessId, date, refreshed]);
 
   // Live updates: refetch while the tab is visible, and say when an online booking arrives.
   useEffect(() => {
@@ -152,13 +176,15 @@ export function DayBoard({ businessId }: { businessId: string }) {
   }
 
   const tz = board?.timezone ?? "UTC";
-  const columns = board?.staff.filter((s) => who === "all" || s.id === who) ?? [];
+  const columns = board?.staff.filter((s) => !hidden.includes(s.id)) ?? [];
+  const colors = staffColors(board?.staff ?? []);
   const needle = search.trim().toLowerCase();
   const matches = (b: Booking) =>
     !needle || b.client_name.toLowerCase().includes(needle) || b.service_name.toLowerCase().includes(needle);
   const shown = board?.bookings.filter((b) => matches(b) && columns.some((c) => c.id === b.staff_id)) ?? [];
   const canBook = (board?.can_book_staff_ids.length ?? 0) > 0;
-  const weekOf = (who !== "all" ? who : board?.staff[0]?.id) ?? null;
+  const weekOf = person ?? columns[0]?.id ?? board?.staff[0]?.id ?? null;
+  const monday = addDays(date, -((parseDate(date).getDay() + 6) % 7));
   const span = view === "week" ? 7 : 1;
   const firstBookable = board?.can_book_staff_ids[0] ?? "";
 
@@ -167,17 +193,32 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="mt-1 text-muted">
-            {view === "week"
-              ? `Week of ${longDate(addDays(date, -((parseDate(date).getDay() + 6) % 7)))}`
-              : longDate(date)}
+          <p className="mt-1 text-lg font-semibold text-spruce">
+            {view === "week" ? `Week of ${longDate(monday)}` : longDate(date)}
           </p>
         </div>
+        {board && board.locations.length > 1 && (
+          <Chips
+            label="Location"
+            items={board.locations.map((l) => ({ id: l.id, name: l.name }))}
+            isOn={(id) => id === board.location_id}
+            onPick={(id) => {
+              setHidden([]);
+              setPerson(null);
+              setPick(null);
+              setLocationId(id);
+            }}
+            icon="pin"
+            compact
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           {board?.can_block_time && (
             <Button
               variant="secondary"
-              onClick={() => setPick({ kind: "block", staffId: board.staff[0]?.id ?? "", time: "12:00" })}
+              onClick={() =>
+                setPick({ kind: "block", staffId: columns[0]?.id ?? board.staff[0]?.id ?? "", time: "12:00" })
+              }
             >
               Block time
             </Button>
@@ -193,69 +234,66 @@ export function DayBoard({ businessId }: { businessId: string }) {
       <div
         role="toolbar"
         aria-label="Calendar controls"
-        className="flex flex-wrap items-end gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3"
+        className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3 shadow-[var(--shadow-card)]"
       >
-        <div className="flex items-center gap-1">
-          <IconButton
-            label={view === "week" ? "Previous week" : "Previous day"}
-            onClick={() => setDate((d) => addDays(d, -span))}
-            flip
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1">
+            <IconButton
+              label={view === "week" ? "Previous week" : "Previous day"}
+              onClick={() => setDate((d) => addDays(d, -span))}
+              flip
+            />
+            <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
+              Today
+            </Button>
+            <IconButton
+              label={view === "week" ? "Next week" : "Next day"}
+              onClick={() => setDate((d) => addDays(d, span))}
+            />
+          </div>
+          <WeekStrip monday={monday} date={date} week={view === "week"} onPick={setDate} />
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
+          <Field
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="w-44"
           />
-          <Button variant="ghost" onClick={() => setDate(isoDate(new Date()))}>
-            Today
-          </Button>
-          <IconButton
-            label={view === "week" ? "Next week" : "Next day"}
-            onClick={() => setDate((d) => addDays(d, span))}
+          <Field
+            label="Search"
+            type="search"
+            value={search}
+            placeholder="Client or service"
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-52"
           />
         </div>
-        <Field
-          label="Date"
-          type="date"
-          value={date}
-          onChange={(e) => e.target.value && setDate(e.target.value)}
-          className="w-44"
-        />
-        {board && board.locations.length > 1 && (
-          <Select
-            label="Location"
-            value={board.location_id}
-            onChange={(e) => {
-              setWho("all");
-              setLocationId(e.target.value);
-            }}
-            className="w-48"
-          >
-            {board.locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
-        )}
         {board && board.staff.length > 1 && (
-          <Select label="Team" value={who} onChange={(e) => setWho(e.target.value)} className="w-44">
-            {view !== "week" && <option value="all">Everyone</option>}
-            {board.staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.display_name}
-              </option>
-            ))}
-          </Select>
+          <Chips
+            label={view === "week" ? "Whose week" : "Team"}
+            items={board.staff.map((s) => ({ id: s.id, name: s.display_name, color: colors.get(s.id) }))}
+            isOn={(id) => (view === "week" ? id === weekOf : !hidden.includes(id))}
+            onPick={(id) => {
+              if (view === "week") return setPerson(id);
+              // Hiding the last person shown would leave an empty board, so show everyone instead.
+              const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+              setHidden(next.length >= board.staff.length ? [] : next);
+            }}
+            all={
+              view === "week"
+                ? undefined
+                : { on: hidden.length === 0, onPick: () => setHidden([]), count: board.staff.length }
+            }
+          />
         )}
-        <Field
-          label="Search"
-          type="search"
-          value={search}
-          placeholder="Client or service"
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-52"
-        />
-        <Toggle label="View" value={view} onChange={setView} options={{ board: "Day", week: "Week", list: "List" }} />
       </div>
 
       <FormError message={error} />
       {board && columns.length > 0 && view !== "week" && <Summary board={board} columns={columns} bookings={shown} />}
+      {view !== "week" && waiting.length > 0 && <WaitingList waiting={waiting} />}
       {notice && (
         <p
           role="status"
@@ -287,6 +325,7 @@ export function DayBoard({ businessId }: { businessId: string }) {
                 setPick(p);
               }}
               onMove={move}
+              colors={colors}
             />
           )}
           {board && view === "week" && weekOf && (
@@ -297,10 +336,11 @@ export function DayBoard({ businessId }: { businessId: string }) {
               refreshed={refreshed}
               search={needle}
               onOpenDay={openDay}
+              color={weekOf ? colors.get(weekOf) : undefined}
             />
           )}
           {board && columns.length > 0 && view === "list" && (
-            <List board={board} bookings={shown} onPick={(id) => setPick({ kind: "booking", id })} />
+            <List board={board} bookings={shown} colors={colors} onPick={(id) => setPick({ kind: "booking", id })} />
           )}
         </div>
         {pick && board && (
@@ -358,6 +398,130 @@ function IconButton({ label, onClick, flip }: { label: string; onClick: () => vo
   );
 }
 
+/** A row of on/off buttons: locations, or which team members to show. */
+function Chips({
+  label,
+  items,
+  isOn,
+  onPick,
+  all,
+  icon,
+  compact,
+}: {
+  compact?: boolean;
+  label: string;
+  items: { id: string; name: string; color?: StaffColor }[];
+  isOn: (id: string) => boolean;
+  onPick: (id: string) => void;
+  all?: { on: boolean; onPick: () => void; count: number };
+  icon?: "pin";
+}) {
+  const chip =
+    "flex min-h-11 shrink-0 items-center whitespace-nowrap gap-2 rounded-full border px-3 text-sm font-semibold transition-colors";
+  return (
+    <div role="group" aria-label={label} className={cn("flex min-w-0 gap-2", compact ? "items-center" : "flex-col")}>
+      <span aria-hidden="true" className={cn("text-sm font-semibold", compact ? "text-muted" : "text-ink")}>
+        {label}
+      </span>
+      {/* One row that scrolls sideways, so 15 people don't push the board off the screen. */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {all && (
+          <button
+            type="button"
+            aria-pressed={all.on}
+            onClick={all.onPick}
+            className={cn(
+              chip,
+              all.on ? "border-ink bg-ink text-white" : "border-line-strong bg-surface hover:bg-mint",
+            )}
+          >
+            Everyone ({all.count})
+          </button>
+        )}
+        {items.map((item) => {
+          const on = isOn(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(item.id)}
+              className={cn(
+                chip,
+                on && !item.color && "border-ink bg-ink text-white",
+                on && item.color && "text-ink",
+                !on && "border-line-strong bg-surface hover:bg-mint",
+                !on && item.color && "bg-ground text-muted line-through",
+              )}
+              style={on && item.color ? { borderColor: item.color.accent, background: item.color.tint } : undefined}
+            >
+              {icon && <Icon name={icon} />}
+              {item.color && (
+                <span
+                  aria-hidden="true"
+                  className="flex size-6 items-center justify-center rounded-full text-[0.625rem] font-bold text-white"
+                  style={{ background: on ? item.color.accent : "var(--color-muted)" }}
+                >
+                  {initials(item.name)}
+                </span>
+              )}
+              {item.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Monday to Sunday around the chosen day, one tap to jump. */
+function WeekStrip({
+  monday,
+  date,
+  week,
+  onPick,
+}: {
+  monday: string;
+  date: string;
+  week: boolean;
+  onPick: (day: string) => void;
+}) {
+  const today = isoDate(new Date());
+  const short = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
+  const month = new Intl.DateTimeFormat("en-GB", { month: "long" });
+  return (
+    <div
+      role="group"
+      aria-label="Days this week"
+      className="flex min-w-0 basis-full gap-1 overflow-x-auto sm:flex-1 sm:basis-0"
+    >
+      {Array.from({ length: 7 }, (_, i) => addDays(monday, i)).map((day) => {
+        const on = week || day === date;
+        return (
+          <button
+            key={day}
+            type="button"
+            aria-pressed={day === date}
+            onClick={() => onPick(day)}
+            className={cn(
+              "relative flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center rounded-[var(--radius-control)] text-sm transition-colors",
+              day === date ? "bg-spruce text-white" : on ? "bg-mint text-ink" : "text-ink hover:bg-mint",
+            )}
+          >
+            <span className="text-xs font-semibold uppercase">{short.format(parseDate(day))}</span>{" "}
+            <span className="text-lg leading-tight font-bold tabular-nums">{parseDate(day).getDate()}</span>
+            <span className="sr-only"> {month.format(parseDate(day))}</span>
+            <span
+              aria-hidden="true"
+              className={cn("size-1.5 rounded-full", day === today ? (day === date ? "bg-white" : "bg-spruce") : "")}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Toggle<T extends string>({
   label,
   value,
@@ -396,18 +560,21 @@ function Toggle<T extends string>({
 
 type Kind = "online" | "walk-in" | "pending" | "done" | "no-show";
 
-/** Colour plus a word for each kind of appointment, so colour never carries meaning alone. */
-const KIND: Record<Kind, { label: string; block: string; swatch: string }> = {
-  online: { label: "Booked online", block: "border-spruce bg-mint-strong", swatch: "border-spruce bg-mint-strong" },
-  "walk-in": {
-    label: "Added by the venue",
-    block: "border-spruce bg-surface ring-1 ring-line-strong",
-    swatch: "border-spruce bg-surface",
-  },
-  pending: { label: "Waiting to confirm", block: "border-ink bg-warn-soft", swatch: "border-ink bg-warn-soft" },
-  done: { label: "Done", block: "border-line-strong bg-ground text-muted", swatch: "border-line-strong bg-ground" },
-  "no-show": { label: "No-show", block: "border-danger bg-danger-soft", swatch: "border-danger bg-danger-soft" },
+/** Status is a word and a mark on the block; colour belongs to the team member. */
+const KIND: Record<Kind, { label: string; mark: string }> = {
+  online: { label: "Booked online", mark: "●" },
+  "walk-in": { label: "Added by the venue", mark: "○" },
+  pending: { label: "Waiting to confirm", mark: "…" },
+  done: { label: "Done", mark: "✓" },
+  "no-show": { label: "No-show", mark: "✕" },
 };
+
+/** A block's colours: the person's tint while it's still to come, plain once it's over. */
+function blockStyle(kind: Kind, color: StaffColor | undefined): CSSProperties {
+  const accent = color?.accent ?? "var(--color-spruce)";
+  if (kind === "done" || kind === "no-show") return { borderColor: accent, background: "var(--color-surface)" };
+  return { borderColor: accent, background: color?.tint ?? "var(--color-mint-strong)" };
+}
 
 function kindOf(b: Booking): Kind {
   if (b.status === "completed") return "done";
@@ -438,6 +605,28 @@ function dayHours(board: Board, columns: Board["staff"], bookings: Booking[]): {
 }
 
 /** The day at a glance for the people shown: what's booked, what's free, what it should bring in. */
+function WaitingList({ waiting }: { waiting: Waiting[] }) {
+  return (
+    <section
+      aria-labelledby="waiting"
+      className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3"
+    >
+      <h2 id="waiting" className="text-sm font-semibold">
+        Waiting for a time ({waiting.length})
+      </h2>
+      <p className="text-sm text-muted">If you cancel or move an appointment, they&apos;re emailed straight away.</p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {waiting.map((w) => (
+          <li key={w.id} className="rounded-full bg-ground px-3 py-1.5 text-sm">
+            <span className="font-semibold">{w.name}</span> · {w.service_name}
+            {w.notified && <span className="text-muted"> · emailed</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Summary({ board, columns, bookings }: { board: Board; columns: Board["staff"]; bookings: Booking[] }) {
   const tz = board.timezone;
   const live = bookings.filter((b) => LIVE.has(b.status));
@@ -468,19 +657,26 @@ function Summary({ board, columns, bookings }: { board: Board; columns: Board["s
   ];
   if (noShows) items.push({ label: "No-shows", value: String(noShows) });
   return (
-    <section aria-label="Day summary" className="flex flex-col gap-3">
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <section
+      aria-label="Day summary"
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[var(--radius-control)] bg-mint px-4 py-2.5"
+    >
+      <dl className="flex flex-wrap gap-x-5 gap-y-1">
         {items.map((i) => (
-          <div key={i.label} className="rounded-[var(--radius-control)] border border-line bg-surface px-4 py-3">
-            <dt className="text-xs font-semibold tracking-[var(--tracking-label)] text-muted uppercase">{i.label}</dt>
-            <dd className="text-lg font-bold tabular-nums">{i.value}</dd>
+          // The value reads first on screen; the term still comes first for screen readers.
+          <div key={i.label} className="flex flex-row-reverse items-baseline gap-1.5">
+            <dt className="text-sm text-muted">{i.label.toLowerCase()}</dt>
+            <dd className="text-lg font-bold text-spruce tabular-nums">{i.value}</dd>
           </div>
         ))}
       </dl>
-      <ul aria-label="Colour key" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+      <ul aria-label="Colour key" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <li>Colour = team member.</li>
         {(Object.keys(KIND) as Kind[]).map((k) => (
           <li key={k} className="flex items-center gap-1.5">
-            <span aria-hidden="true" className={cn("h-3.5 w-6 rounded-sm border-l-4", KIND[k].swatch)} />
+            <span aria-hidden="true" className="font-bold text-ink">
+              {KIND[k].mark}
+            </span>
             {KIND[k].label}
           </li>
         ))}
@@ -498,7 +694,9 @@ function Grid({
   onSlot,
   onPick,
   onMove,
+  colors,
 }: {
+  colors: Map<string, StaffColor>;
   board: Board;
   columns: Board["staff"];
   bookings: Booking[];
@@ -590,11 +788,29 @@ function Grid({
             <section
               key={col.id}
               aria-label={col.display_name}
-              className="min-w-44 flex-1 border-r border-line last:border-r-0"
+              className={cn(
+                "flex-1 border-r border-line last:border-r-0",
+                columns.length > 6 ? "min-w-36" : "min-w-44",
+              )}
             >
-              <header className="sticky top-0 z-10 flex h-16 flex-col justify-center border-b border-line bg-surface px-3">
-                <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
-                <p className="text-xs text-muted">{col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}</p>
+              <header
+                className="sticky top-0 z-10 flex h-16 items-center gap-2.5 border-t-4 border-b border-b-line bg-surface px-3"
+                style={{ borderTopColor: colors.get(col.id)?.accent }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: colors.get(col.id)?.accent }}
+                >
+                  {initials(col.display_name)}
+                </span>
+                <span className="min-w-0">
+                  <h2 className="truncate text-sm font-bold">{col.display_name}</h2>
+                  <p className="text-xs text-muted">
+                    {col.shift ? `${col.shift.starts}–${col.shift.ends}` : "Day off"}
+                    {own.length > 0 && ` · ${own.filter((b) => LIVE.has(b.status)).length} booked`}
+                  </p>
+                </span>
               </header>
               <div
                 data-opens={OPEN}
@@ -671,13 +887,18 @@ function Grid({
                         onPick({ kind: "booking", id: b.id });
                       }}
                       className={cn(
-                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
-                        KIND[kind].block,
+                        "absolute inset-x-1 z-[1] flex flex-col justify-start overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink shadow-sm transition-transform hover:-translate-y-px hover:shadow-md",
+                        kind === "pending" && "border-y border-r border-dashed",
+                        (kind === "done" || kind === "no-show") &&
+                          "border-y border-r border-y-line border-r-line text-muted",
                       )}
-                      style={{ top: top(start), height: h - 2 }}
+                      style={{ top: top(start), height: h - 2, ...blockStyle(kind, colors.get(b.staff_id)) }}
                     >
-                      <span className={cn("block font-bold", kind === "done" ? "text-muted" : "text-spruce")}>
-                        {clock(start)} {b.client_name}
+                      <span className="flex items-baseline gap-1 font-bold">
+                        <span aria-hidden="true">{KIND[kind].mark}</span>
+                        <span className={cn("truncate", kind === "no-show" && "line-through")}>
+                          {clock(start)} {b.client_name}
+                        </span>
                       </span>{" "}
                       <span className={h > row * 1.5 ? "block truncate text-ink" : "sr-only"}>
                         {b.service_name} · {KIND[kind].label}
@@ -779,7 +1000,9 @@ function WeekView({
   refreshed,
   search,
   onOpenDay,
+  color,
 }: {
+  color: StaffColor | undefined;
   businessId: string;
   staffId: string;
   date: string;
@@ -809,7 +1032,16 @@ function WeekView({
 
   return (
     <section aria-label={`${week.staff.display_name}'s week`} className="flex flex-col gap-3">
-      <h2 className="text-xl font-bold">{week.staff.display_name}&apos;s week</h2>
+      <h2 className="flex items-center gap-2.5 text-xl font-bold">
+        <span
+          aria-hidden="true"
+          className="flex size-9 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{ background: color?.accent }}
+        >
+          {initials(week.staff.display_name)}
+        </span>
+        {week.staff.display_name}&apos;s week
+      </h2>
       <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {week.days.map((d) => {
           const own = week.bookings.filter(
@@ -865,12 +1097,16 @@ function WeekView({
                           type="button"
                           onClick={() => onOpenDay(d.date, b.id)}
                           className={cn(
-                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs hover:shadow-md",
-                            KIND[kind].block,
+                            "flex min-h-11 w-full flex-col rounded-lg border-l-4 px-2 py-1 text-left text-xs text-ink hover:shadow-md",
+                            (kind === "done" || kind === "no-show") && "text-muted",
                           )}
+                          style={blockStyle(kind, color)}
                         >
-                          <span className="font-bold">
-                            {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                          <span className="flex items-baseline gap-1 font-bold">
+                            <span aria-hidden="true">{KIND[kind].mark}</span>
+                            <span className={cn(kind === "no-show" && "line-through")}>
+                              {clock(minutesAt(b.starts_at, tz))} {b.client_name}
+                            </span>
                           </span>
                           <span className="truncate">
                             {b.service_name} · {KIND[kind].label}
@@ -892,7 +1128,17 @@ function WeekView({
   );
 }
 
-function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; onPick: (id: string) => void }) {
+function List({
+  board,
+  bookings,
+  colors,
+  onPick,
+}: {
+  board: Board;
+  bookings: Booking[];
+  colors: Map<string, StaffColor>;
+  onPick: (id: string) => void;
+}) {
   const name = (id: string) => board.staff.find((s) => s.id === id)?.display_name ?? "";
   if (bookings.length === 0) {
     return (
@@ -942,7 +1188,16 @@ function List({ board, bookings, onPick }: { board: Board; bookings: Booking[]; 
                 {b.service_name}
                 <span className="block text-xs text-muted">{KIND[kindOf(b)].label}</span>
               </td>
-              <td className="px-4 py-2">{name(b.staff_id)}</td>
+              <td className="px-4 py-2">
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="size-3 shrink-0 rounded-full"
+                    style={{ background: colors.get(b.staff_id)?.accent }}
+                  />
+                  {name(b.staff_id)}
+                </span>
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{formatPrice(b.price_minor, b.currency)}</td>
             </tr>
           ))}
@@ -1165,6 +1420,10 @@ function AppointmentPanel({
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  // When the owner asked to record one, to say when online booking opens.
+  const [confirmPatch, setConfirmPatch] = useState<number | null>(null);
+  const [patchNote, setPatchNote] = useState<string | null>(null);
 
   useEffect(() => {
     api<BookingDetail>(`/bookings/${id}`)
@@ -1191,6 +1450,12 @@ function AppointmentPanel({
   const open = detail.status === "pending" || detail.status === "confirmed";
   const mayChange = open && board.can_book_staff_ids.includes(detail.staff_id);
   const mayMark = detail.status === "confirmed" && started && board.can_mark_staff_ids.includes(detail.staff_id);
+  // Patch tests are kept on the customer's account at this venue, so not for walk-in guests.
+  const mayRecord =
+    detail.source === "consumer" &&
+    detail.status !== "cancelled" &&
+    detail.needs_patch_test &&
+    board.can_mark_staff_ids.includes(detail.staff_id);
   const person = board.staff.find((s) => s.id === detail.staff_id)?.display_name ?? "";
   const chosen = staff ?? detail.staff_id;
   const people = board.staff.filter((s) => board.can_book_staff_ids.includes(s.id));
@@ -1220,19 +1485,30 @@ function AppointmentPanel({
     }
   }
 
-  async function mark(outcome: "complete" | "no-show") {
+  async function noShow() {
     if (!detail) return;
     setBusy(true);
     setError(null);
     try {
-      await api(`/bookings/${detail.id}/${outcome}`, { method: "PATCH" });
-      await onChanged(
-        outcome === "complete"
-          ? `Marked ${detail.client_name}'s appointment as done.`
-          : `Marked ${detail.client_name} as a no-show.`,
-      );
+      await api(`/bookings/${detail.id}/no-show`, { method: "PATCH" });
+      await onChanged(`Marked ${detail.client_name} as a no-show.`);
     } catch (e) {
       setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  async function recordPatchTest() {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDetail(await api<BookingDetail>(`/bookings/${detail.id}/patch-test`, { method: "POST" }));
+      setConfirmPatch(null);
+      setPatchNote(`Patch test recorded for ${detail.client_name} today.`);
+    } catch (e) {
+      setError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -1268,6 +1544,12 @@ function AppointmentPanel({
             </dd>
             <dt className="text-muted">With</dt>
             <dd>{person}</dd>
+            {detail.resource_name && (
+              <>
+                <dt className="text-muted">Room</dt>
+                <dd>{detail.resource_name}</dd>
+              </>
+            )}
             {detail.guest_phone && (
               <>
                 <dt className="text-muted">Phone</dt>
@@ -1286,6 +1568,26 @@ function AppointmentPanel({
             )}
             <dt className="text-muted">Notes</dt>
             <dd className="whitespace-pre-line">{detail.notes || "None"}</dd>
+            {(detail.needs_patch_test || detail.patch_test_at) && (
+              <>
+                <dt className="text-muted">Patch test</dt>
+                <dd>
+                  {detail.patch_test_at
+                    ? `Done ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(new Date(detail.patch_test_at))}`
+                    : "None recorded"}
+                </dd>
+              </>
+            )}
+            {detail.sale && (
+              <>
+                <dt className="text-muted">Paid</dt>
+                <dd className="font-semibold">
+                  {formatPrice(detail.sale.price_minor, detail.sale.currency)},{" "}
+                  {METHODS[detail.sale.method].toLowerCase()}
+                  {detail.sale.tip_minor > 0 && ` · tip ${formatPrice(detail.sale.tip_minor, detail.sale.currency)}`}
+                </dd>
+              </>
+            )}
             {(detail.status === "completed" || detail.status === "no_show") && (
               <>
                 <dt className="text-muted">Outcome</dt>
@@ -1293,15 +1595,71 @@ function AppointmentPanel({
               </>
             )}
           </dl>
-          {mayMark && (
+          {detail.form !== "none" && <VisitAnswers bookingId={detail.id} state={detail.form} />}
+          {patchNote && (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] bg-mint px-4 py-3 text-sm font-semibold text-spruce"
+            >
+              {patchNote}
+            </p>
+          )}
+          {mayRecord && confirmPatch === null && (
+            <Button
+              variant="secondary"
+              className="self-start"
+              disabled={busy}
+              onClick={() => setConfirmPatch(Date.now())}
+            >
+              Record patch test today
+            </Button>
+          )}
+          {mayRecord && confirmPatch !== null && (
+            <div
+              role="alertdialog"
+              aria-labelledby="patch-q"
+              className="flex flex-col gap-3 rounded-[var(--radius-control)] bg-warn-soft p-4"
+            >
+              <p id="patch-q" className="text-sm font-semibold">
+                Record that {detail.client_name} had a patch test here today? They can then book this service online
+                from{" "}
+                {new Intl.DateTimeFormat("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: tz,
+                }).format(new Date(confirmPatch + 48 * 3600 * 1000))}
+                .
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={busy} onClick={recordPatchTest} autoFocus>
+                  Yes, record it
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmPatch(null)} disabled={busy}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          )}
+          {detail.needs_patch_test && detail.source !== "consumer" && (
+            <p className="text-sm text-muted">
+              Patch tests are kept on a customer&apos;s Spruce account, so they can&apos;t be recorded for a walk-in.
+            </p>
+          )}
+          {mayMark && !checkingOut && (
             <div className="flex flex-wrap gap-2">
-              <Button loading={busy} onClick={() => mark("complete")}>
-                Mark as done
+              <Button disabled={busy} onClick={() => setCheckingOut(true)}>
+                Check out
               </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => mark("no-show")}>
+              <Button variant="secondary" disabled={busy} onClick={noShow}>
                 No-show
               </Button>
             </div>
+          )}
+          {mayMark && checkingOut && (
+            <Checkout detail={detail} onDone={(paid) => onChanged(paid)} onBack={() => setCheckingOut(false)} />
           )}
           {mayChange && !confirmCancel && (
             <div className="flex flex-wrap gap-2">
@@ -1364,6 +1722,227 @@ function AppointmentPanel({
         </form>
       )}
     </>
+  );
+}
+
+const METHODS = { card: "Card", cash: "Cash", other: "Other" } as const;
+
+/** "35", "35.5" or "35,50" to cents. Null when it isn't an amount. */
+function toMinor(text: string): number | null {
+  const clean = text.trim().replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
+  return Math.round(Number(clean) * 100);
+}
+
+/** Records what was paid at the venue and finishes the visit (slice 14). Spruce takes no money. */
+function Checkout({
+  detail,
+  onDone,
+  onBack,
+}: {
+  detail: BookingDetail;
+  onDone: (text: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  // No default: a hurried cash payment mustn't be recorded as card.
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [price, setPrice] = useState((detail.price_minor / 100).toFixed(2));
+  const [tipText, setTipText] = useState("");
+  const [errors, setErrors] = useState<{ price?: string; tip?: string; method?: string }>({});
+  const amount = toMinor(price);
+  const tipAmount = tipText.trim() ? toMinor(tipText) : 0;
+  const unusual = amount !== null && detail.price_minor > 0 && amount > detail.price_minor * 3;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const found = {
+      price: amount === null ? "Enter an amount like 35 or 35.50." : undefined,
+      tip: tipAmount === null ? "Enter a tip like 5, or leave it empty." : undefined,
+      method: method === null ? "Choose how they paid." : undefined,
+    };
+    setErrors(found);
+    if (amount === null || tipAmount === null || method === null) {
+      const first = amount === null ? "[name=price]" : tipAmount === null ? "[name=tip]" : "[name=method]";
+      event.currentTarget.querySelector<HTMLInputElement>(first)?.focus();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/bookings/${detail.id}/checkout`, {
+        method: "POST",
+        body: { price_minor: amount, tip_minor: tipAmount, method },
+      });
+      await onDone(`Checked out ${detail.client_name}: ${formatPrice(amount + tipAmount, detail.currency)} paid.`);
+    } catch (e) {
+      setError(message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={submit}
+      aria-labelledby="checkout-title"
+      className="flex flex-col gap-4 rounded-[var(--radius-control)] bg-ground p-4"
+    >
+      <h3 id="checkout-title" className="font-bold">
+        Check out
+      </h3>
+      <FormError message={error} />
+      <Field
+        label="Amount for the service"
+        name="price"
+        inputMode="decimal"
+        value={price}
+        onChange={(e) => {
+          setPrice(e.target.value);
+          setErrors((x) => ({ ...x, price: undefined }));
+        }}
+        hint={`In ${detail.currency}. Change it for a discount or an extra.`}
+        error={errors.price}
+        required
+        autoFocus
+      />
+      {unusual && (
+        <p className="rounded-[var(--radius-control)] bg-warn-soft px-3 py-2 text-sm">
+          That&apos;s more than three times the booked price of {formatPrice(detail.price_minor, detail.currency)}.
+          Check it before you confirm.
+        </p>
+      )}
+      <Field
+        label="Tip"
+        name="tip"
+        inputMode="decimal"
+        placeholder="0"
+        hint="Goes to the person in full, with no commission."
+        value={tipText}
+        onChange={(e) => {
+          setTipText(e.target.value);
+          setErrors((x) => ({ ...x, tip: undefined }));
+        }}
+        error={errors.tip}
+      />
+      <fieldset className="flex flex-col gap-1" aria-describedby={errors.method ? "method-error" : undefined}>
+        <legend className="text-sm font-semibold">
+          Paid by
+          <span className="font-normal text-muted">
+            {" "}
+            <span aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </legend>
+        <div className="flex flex-wrap gap-x-5">
+          {(Object.keys(METHODS) as PaymentMethod[]).map((m) => (
+            <label key={m} className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="method"
+                value={m}
+                checked={method === m}
+                onChange={() => {
+                  setMethod(m);
+                  setErrors((x) => ({ ...x, method: undefined }));
+                }}
+                className="size-5 accent-spruce"
+              />
+              {METHODS[m]}
+            </label>
+          ))}
+        </div>
+        {errors.method && (
+          <p id="method-error" className="text-sm font-medium text-danger">
+            {errors.method}
+          </p>
+        )}
+      </fieldset>
+      <p className="text-base font-bold" aria-live="polite">
+        Total to take:{" "}
+        {amount !== null && tipAmount !== null ? formatPrice(amount + tipAmount, detail.currency) : "check the amounts"}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" loading={busy}>
+          Confirm checkout
+        </Button>
+        <Button variant="ghost" onClick={onBack} disabled={busy}>
+          Back
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** A visit's consultation answers (slice 13). Fetched only when asked for, since each read is audited. */
+function VisitAnswers({ bookingId, state }: { bookingId: string; state: "to_fill" | "filled" }) {
+  const [form, setForm] = useState<VisitForm | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function show() {
+    setBusy(true);
+    setError(null);
+    try {
+      setForm(await api<VisitForm>(`/bookings/${bookingId}/form`));
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 404
+          ? "Only the owner and the person doing this visit can read the answers."
+          : message(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby={`answers-${bookingId}`}
+      className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-ground p-3"
+    >
+      <h3 id={`answers-${bookingId}`} className="text-sm font-semibold">
+        Consultation form
+      </h3>
+      {state === "to_fill" ? (
+        <p className="text-sm text-muted">Not filled in yet.</p>
+      ) : form ? (
+        <dl className="flex flex-col gap-2 text-sm">
+          {form.questions.map((q, i) => {
+            const a = form.answers?.[i];
+            return (
+              <div key={i}>
+                <dt className="text-muted">{q.label}</dt>
+                <dd className="whitespace-pre-line font-semibold">
+                  {a === true ? (
+                    // A yes often means something to check before the visit, so it stands out.
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5">
+                      <span aria-hidden="true">!</span> Yes
+                    </span>
+                  ) : a === false ? (
+                    "No"
+                  ) : (
+                    a || "No answer"
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <>
+          {error ? (
+            <p className="text-sm">{error}</p>
+          ) : (
+            <Button variant="secondary" className="self-start" loading={busy} onClick={show}>
+              Show answers
+            </Button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

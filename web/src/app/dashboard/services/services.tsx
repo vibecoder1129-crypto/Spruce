@@ -12,10 +12,14 @@ import { cn } from "@/lib/cn";
 import { useFieldErrors } from "@/lib/form-errors";
 
 import { useBusiness } from "../shell";
+import { Forms } from "./forms";
+import { Rooms } from "./rooms";
 
 const DURATIONS = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
 
 /** "35", "35.5" or "35,50" to cents. Null when it isn't a price. */
+const REBOOK_WEEKS = [0, 2, 3, 4, 6, 8, 12, 26];
+
 function toMinor(text: string): number | null {
   const clean = text.trim().replace(",", ".");
   if (!/^\d{1,6}(\.\d{1,2})?$/.test(clean)) return null;
@@ -120,6 +124,8 @@ export function ServicesPage() {
               </ul>
             </details>
           )}
+          {services !== null && <Forms businessId={business.id} services={active} />}
+          {services !== null && <Rooms businessId={business.id} services={active} />}
         </div>
         {editing && (
           <ServicePanel
@@ -148,7 +154,10 @@ function ServiceRow({ service, selected, onEdit }: { service: Service; selected:
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-semibold">{service.name}</span>
-        <span className="text-sm text-muted">{formatDuration(service.duration_minutes)}</span>
+        <span className="text-sm text-muted">
+          {formatDuration(service.duration_minutes)}
+          {service.needs_patch_test && " · Needs a patch test"}
+        </span>
       </span>
       <span className="font-bold tabular-nums">{formatPrice(service.price_minor, service.currency)}</span>
       <span className="sr-only">Edit</span>
@@ -204,6 +213,8 @@ function ServicePanel({
       category: String(form.get("category")),
       duration_minutes: Number(form.get("duration")),
       price_minor: price,
+      rebook_weeks: Number(form.get("rebook")),
+      needs_patch_test: form.get("patch") === "on",
     };
     void run(
       () =>
@@ -279,6 +290,34 @@ function ServicePanel({
           error={errors.price ?? priceError}
           required
         />
+        <Select
+          label="Remind clients to rebook after"
+          name="rebook"
+          defaultValue={service?.rebook_weeks ?? 0}
+          hint="One email after their visit, with a link to book the same again. Not if they've already booked, or turned reminders off."
+        >
+          {REBOOK_WEEKS.map((w) => (
+            <option key={w} value={w}>
+              {w === 0 ? "Don't remind" : w === 26 ? "6 months" : `${w} weeks`}
+            </option>
+          ))}
+        </Select>
+        <label className="flex min-h-11 items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="patch"
+            defaultChecked={service?.needs_patch_test ?? false}
+            aria-describedby="patch-hint"
+            className="mt-0.5 size-5 shrink-0 accent-spruce"
+          />
+          <span>
+            <span className="font-semibold">Needs a patch test</span>
+            <span id="patch-hint" className="block text-muted">
+              Clients can book it online only if you recorded a patch test for them 48 hours to 6 months before. You
+              record it on any of their appointments.
+            </span>
+          </span>
+        </label>
         <Button type="submit" loading={busy}>
           {service ? "Save changes" : "Add service"}
         </Button>

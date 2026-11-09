@@ -8,16 +8,18 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
+from app.booking import consult, resources
 from app.booking.models import (
     Booking,
     BookingSource,
     BookingStatus,
     CustomerProfile,
+    Sale,
     TimeOff,
     WeeklyShift,
 )
@@ -27,10 +29,12 @@ from app.booking.schemas import (
     BookingOut,
     BookingPatch,
     CalendarOut,
+    ChannelCount,
     Column,
     DayShift,
     MyBooking,
     PlaceOut,
+    SaleOut,
     ShiftOut,
     ShiftsIn,
     TimeOffIn,
@@ -308,17 +312,27 @@ async def _flags(db: AsyncSession, bookings: list[Booking]) -> dict[uuid.UUID, l
 
 
 async def _detail(db: AsyncSession, booking: Booking) -> BookingDetail:
-    name = (
-        await db.execute(select(Service.name).where(Service.id == booking.service_id))
-    ).scalar_one()
+    service = await db.get_one(Service, booking.service_id)
     guest = _guest(booking)
     flags = (await _flags(db, [booking])).get(booking.id, [])
     return BookingDetail(
-        **_booking_out(booking, name, flags).model_dump(),
+        **_booking_out(booking, service.name, flags).model_dump(),
         guest_phone=guest.get("phone"),
         guest_email=guest.get("email"),
         notes=booking.notes,
+        resource_name=await resources.name(db, booking.resource_id),
+        form=await consult.form_state(db, booking, service),
+        needs_patch_test=service.needs_patch_test,
+        patch_test_at=await consult.patch_test_at(
+            db, booking.business_id, booking.consumer_user_id
+        ),
+        sale=await _sale(db, booking.id),
     )
+
+
+async def _sale(db: AsyncSession, booking_id: uuid.UUID) -> SaleOut | None:
+    sale = await db.scalar(select(Sale).where(Sale.booking_id == booking_id))
+    return SaleOut.model_validate(sale, from_attributes=True) if sale else None
 
 
 async def _bookable(
@@ -394,7 +408,10 @@ async def _flush_booking(db: AsyncSession) -> None:
     except IntegrityError as error:
         await db.rollback()
         if getattr(error.orig, "sqlstate", None) == "23P01":  # exclusion_violation
-            raise HTTPException(status.HTTP_409_CONFLICT, detail=TAKEN) from None
+            room = "no_double_resource" in str(error.orig)
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, detail=resources.NO_ROOM if room else TAKEN
+            ) from None
         raise
 
 
@@ -407,6 +424,7 @@ async def add_walk_in(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="You can't book for this person.")
     staff, service = await _bookable(db, business_id, body.staff_id, body.service_id)
     starts_at, ends_at = await _fits(db, staff, body.start, service.duration_minutes)
+    resource_id = await resources.pick(db, service.id, staff.location_id, starts_at, ends_at)
     guest = body.guest.model_dump(exclude_none=True)
     booking = Booking(
         business_id=business_id,
@@ -418,6 +436,7 @@ async def add_walk_in(
         ends_at=ends_at,
         status=BookingStatus.confirmed,
         source=BookingSource.owner,
+        resource_id=resource_id,
         notes=body.notes,
         price_minor=service.price_minor,
         currency=service.currency,
@@ -478,6 +497,9 @@ async def edit_booking(
         zone = await _zone(db, staff)
         start = body.start or booking.starts_at.astimezone(ZoneInfo(zone)).replace(tzinfo=None)
         starts_at, ends_at = await _fits(db, staff, start, service.duration_minutes)
+        booking.resource_id = await resources.pick(
+            db, service.id, staff.location_id, starts_at, ends_at, booking
+        )
         booking.staff_id = staff.id
         booking.location_id = staff.location_id
         booking.starts_at, booking.ends_at = starts_at, ends_at
@@ -498,9 +520,10 @@ async def edit_booking(
     await _flush_booking(db)
     await db.commit()
     if moved:
-        from app.booking import customer
+        from app.booking import customer, waitlist
 
         await customer.notify(db, booking, "moved")
+        await waitlist.offer(db, booking.business_id, *before)
     return await _detail(db, booking)
 
 
@@ -508,7 +531,8 @@ async def edit_booking(
 async def cancel_booking(
     booking_id: uuid.UUID, auth: FullySignedIn, db: Db
 ) -> BookingDetail | MyBooking:
-    from app.booking import customer  # the customer side lives there and imports this module
+    # the customer side and the waitlist import this module
+    from app.booking import customer, waitlist
 
     if auth.user.role is Role.consumer:
         return await customer.cancel_own(db, auth, booking_id)
@@ -521,6 +545,7 @@ async def cancel_booking(
     )
     await db.commit()
     await customer.notify(db, booking, "cancelled")
+    await waitlist.offer(db, booking.business_id, booking.staff_id, booking.starts_at)
     return await _detail(db, booking)
 
 
@@ -768,3 +793,21 @@ async def week_board(
         bookings=[_booking_out(b, name, flags.get(b.id, [])) for b, name in rows],
         time_off=[_time_off_out(b) for b in blocks],
     )
+
+
+@router.get("/businesses/{business_id}/channels")
+async def channels(business_id: uuid.UUID, auth: Owner, db: Db) -> list[ChannelCount]:
+    """Online bookings made in the last 30 days, per place the venue shared its link (slice 10)."""
+    business = await _owned(db, auth, business_id)
+    count = func.count().label("bookings")
+    rows = await db.execute(
+        select(Booking.channel, count)
+        .where(
+            Booking.business_id == business.id,
+            Booking.source == BookingSource.consumer,
+            Booking.created_at > utcnow() - timedelta(days=30),
+        )
+        .group_by(Booking.channel)
+        .order_by(count.desc(), Booking.channel)
+    )
+    return [ChannelCount.model_validate({"channel": c, "bookings": n}) for c, n in rows.all()]
